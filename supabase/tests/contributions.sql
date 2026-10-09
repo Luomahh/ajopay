@@ -1,0 +1,72 @@
+-- Synthetic users only; all data changes roll back. Run as postgres.
+begin;
+insert into auth.users(id,email,raw_user_meta_data) values
+('00000000-0000-4000-8000-000000000301','contribution-leader@example.invalid','{"full_name":"Leader"}'),
+('00000000-0000-4000-8000-000000000302','contribution-member@example.invalid','{"full_name":"Member"}'),
+('00000000-0000-4000-8000-000000000303','contribution-outsider@example.invalid','{"full_name":"Outsider"}');
+do $$
+declare g jsonb; t jsonb; gid uuid; today date:=(now() at time zone 'Africa/Lagos')::date; member_id uuid:='00000000-0000-4000-8000-000000000302'; n integer;
+begin
+execute 'set local role authenticated';
+perform set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000301',true);
+g:=public.create_savings_group_v2(repeat('9',32),'Contribution test',500000,2,today+3,'target','weekly',today+17); gid:=(g->>'id')::uuid;
+begin perform public.submit_contribution(gid,1,500000,'draft-payment',today,0); raise exception 'draft submission allowed'; exception when invalid_parameter_value then null; end;
+perform set_config('request.jwt.claim.sub',member_id::text,true);
+perform public.join_savings_group(g->>'invite_code'); perform public.accept_group_terms(gid,1);
+perform set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000301',true);
+perform public.accept_group_terms(gid,1); perform public.activate_savings_group(gid,1);
+perform set_config('request.jwt.claim.sub',member_id::text,true);
+t:=public.get_contribution_tracker(gid);
+if (t->'periods'->0->>'opens_on')::date<>today-3 or (t->'periods'->1->>'opens_on')::date<>today+4 then raise exception 'weekly boundary wrong'; end if;
+begin perform public.submit_contribution(gid,2,500000,'future',today,0); raise exception 'future period allowed'; exception when invalid_parameter_value then null; end;
+begin perform public.submit_contribution(gid,1,1,'wrong-amount',today,0); raise exception 'wrong amount allowed'; exception when invalid_parameter_value then null; end;
+begin perform public.submit_contribution(gid,1,500000,'future-date',today+1,0); raise exception 'future paid date allowed'; exception when invalid_parameter_value then null; end;
+begin perform public.submit_contribution(gid,1,500000,'before-window',today-4,0); raise exception 'before-window payment allowed'; exception when invalid_parameter_value then null; end;
+t:=public.submit_contribution(gid,1,500000,'member-ref-1',today-3,0);
+t:=public.submit_contribution(gid,1,500000,'member-ref-1',today-3,0);
+if jsonb_array_length(t->'contributions')<>1 or jsonb_array_length(t->'history')<>1 or t->'contributions'->0->>'status'<>'pending' then raise exception 'submission retry wrong'; end if;
+begin perform public.submit_contribution(gid,1,500000,'another-payment',today,0); raise exception 'duplicate payment allowed'; exception when invalid_parameter_value then null; end;
+begin perform public.review_contribution(gid,1,member_id,1,true,''); raise exception 'member reviewed'; exception when insufficient_privilege then null; end;
+begin perform 1 from public.contributions; raise exception 'raw ledger read allowed'; exception when insufficient_privilege then null; end;
+begin update public.contributions set status='confirmed'; raise exception 'direct update allowed'; exception when insufficient_privilege then null; end;
+perform set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000301',true);
+begin perform public.review_contribution(gid,1,member_id,1,false,''); raise exception 'missing reason allowed'; exception when invalid_parameter_value then null; end;
+perform public.review_contribution(gid,1,member_id,1,false,'Reference not found');
+perform public.review_contribution(gid,1,member_id,1,false,'Reference not found');
+perform set_config('request.jwt.claim.sub',member_id::text,true);
+t:=public.submit_contribution(gid,1,500000,'corrected-member-ref',today,1);
+if t->'contributions'->0->>'version'<>'2' then raise exception 'correction version wrong'; end if;
+perform set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000301',true);
+begin perform public.review_contribution(gid,1,member_id,1,true,''); raise exception 'stale review allowed'; exception when invalid_parameter_value then null; end;
+perform public.review_contribution(gid,1,member_id,2,true,'');
+perform public.review_contribution(gid,1,member_id,2,true,'');
+begin perform public.review_contribution(gid,1,member_id,2,false,'Change decision'); raise exception 'confirmed payment reversed'; exception when invalid_parameter_value then null; end;
+-- Simulate passage of time for overdue/current-period checks without changing the clock.
+execute 'reset role';
+update public.group_periods set due_date=due_date-4 where group_id=gid;
+execute 'set local role authenticated';
+perform set_config('request.jwt.claim.sub',member_id::text,true);
+begin perform public.submit_contribution(gid,2,500000,'corrected-member-ref',today,0); raise exception 'reference reused'; exception when unique_violation then null; end;
+t:=public.submit_contribution(gid,2,500000,'new-week-reference',today,0);
+if jsonb_array_length(t->'contributions')<>2 then raise exception 'new week not recorded'; end if;
+perform set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000301',true);
+t:=public.submit_contribution(gid,1,500000,'leader-late-ref',today,0);
+if jsonb_array_length(t->'contributions')<>3 then raise exception 'leader view or overdue record wrong'; end if;
+perform public.review_contribution(gid,1,'00000000-0000-4000-8000-000000000301',1,true,'');
+perform set_config('request.jwt.claim.sub',member_id::text,true);
+t:=public.get_contribution_tracker(gid);
+if jsonb_array_length(t->'contributions')<>2 or jsonb_array_length(t->'history')<>5 then raise exception 'member privacy or audit retries wrong'; end if;
+if exists(select 1 from jsonb_array_elements(t->'contributions') x where x->>'user_id'<>member_id::text) then raise exception 'member privacy leak'; end if;
+perform set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000303',true);
+begin perform public.get_contribution_tracker(gid); raise exception 'outsider read'; exception when insufficient_privilege then null; end;
+begin perform public.submit_contribution(gid,1,500000,'outsider-ref',today,0); raise exception 'outsider submission'; exception when insufficient_privilege then null; end;
+perform set_config('request.jwt.claim.sub','',true);
+begin perform public.get_contribution_tracker(gid); raise exception 'no identity read'; exception when insufficient_privilege then null; end;
+execute 'set local role anon';
+begin perform public.get_contribution_tracker(gid); raise exception 'anonymous read'; exception when insufficient_privilege then null; end;
+execute 'reset role';
+select count(*) into n from public.contribution_history where group_id=gid;
+if n<>7 then raise exception 'audit history missing or duplicated: %',n; end if;
+end; $$;
+rollback;
+select 'PASS: early and overdue payment, weekly boundaries, duplicate prevention, correction, review, privacy and audit history' as result;

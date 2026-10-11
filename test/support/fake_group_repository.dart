@@ -112,6 +112,10 @@ class FakeGroupRepository implements GroupRepository {
       mode: draft.mode,
       frequency: draft.frequency,
       endDate: draft.endDate,
+      rulesVersion: draft.rulesVersion,
+      payoutFrequency: draft.payoutFrequency,
+      firstCollectionDate: draft.firstCollectionDate,
+      lateFeeKobo: draft.lateFeeKobo,
       inviteCode: requestId,
     );
     groups.add(group);

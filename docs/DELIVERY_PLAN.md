@@ -75,6 +75,24 @@ Retain the working Flutter/Riverpod/GoRouter/Supabase stack. Add only structures
 - Fifth migration applied live; rollback-only receipt/chat authorization tests passed. Screenshots are evidence for manual review, not independent bank verification.
 - Next: payout recording and recipient acknowledgement.
 
+### Completed payout implementation — 2026-10-11
+- User reported successful testing of contributions, receipts, and group chat before this milestone.
+- Leaders can record externally made payouts; recipients confirm receipt or report problems. Corrections and acknowledgements retain versioned history.
+- Rotating payouts require all period contributions, the agreed date, and earlier payout acknowledgements. End-date plans return each member's principal after the end date and all scheduled contributions are confirmed.
+- Every payout acknowledgement is required before a group becomes completed. Completed groups retain readable contribution and payout history.
+- Sixth migration applied and rollback-only rotating/target payout suite passed live on 2026-10-10. See `PAYOUTS.md` for usage and manual acceptance.
+- Next milestone: run the full round with two accounts on devices, verify Android build/run and navigation, then polish errors/empty states and prepare the demo, release artifact, screenshots, and portfolio material. Payout two-account acceptance was subsequently confirmed by the developer on 2026-10-11; do not label the entire product release-ready yet.
+
+### Release preparation — 2026-10-11
+- Added a completed-round navigation regression covering retained payout/contribution history and sign-out route protection.
+- Replaced placeholder Android/web naming and descriptions; the browser theme now follows the emerald design.
+- Built and launched Android debug and release-mode apps on the connected API 37 emulator. This verifies startup, not full two-account device acceptance.
+- Final checks: 73 Flutter tests passed, analysis clean, web build successful. Produced the 55.7 MB release-mode APK for private demo testing, signed with the existing development key.
+- Prepared `PORTFOLIO_CASE_STUDY.md` with a factual project summary and draft CV bullets; no professional experience or adoption metrics are invented.
+- Added `DEMO_GUIDE.md` with fictional-data screenshots, a three-minute demo script, interview talking points, and an honest acceptance matrix.
+- Developer confirmed the payout flow worked from both leader and recipient accounts on 2026-10-11.
+- Remaining: physical Android and offline/restart checks, production signing and demo hosting decisions, then portfolio/CV packaging. The original roadmap's trust-score and bidding ideas remain deferred in the revised MVP scope.
+
 ### Planned milestones
 - Days 1–2: finish recovery; establish Git history; inspect Supabase schema and reproduce the original reported error; verify live auth.
 - Days 3–5: secure group create/join, membership, activation, and payout schedule.
@@ -91,3 +109,11 @@ A provisional daily split is 60% product work, 25% applications, and 15% Flutter
 
 ## Release evidence
 Require clean static analysis, meaningful passing tests, a successful web build, and an Android run/build before calling the demo ready. Verify live sign-up, confirmation, sign-in, sign-out, and session restoration. Test the full savings round and denied cross-group access. Include setup instructions, screenshots, known limitations, and a short walkthrough. Label checks that have not been performed.
+
+## 2026-10-11 — product rules and web/profile work
+
+Release packaging paused at the owner's request. New work includes independently scheduled rotating payouts, minimum-plus-extra end-date contributions, separate NGN 200 late-fee assessment, member profiles, a draft group bank account with consent reset and activation locking, responsive web landing, and a new AjoPay mark and platform icons. See [Flexible savings](FLEXIBLE_SAVINGS.md) and [Web preview](WEB_PREVIEW.md).
+
+Existing groups retain their original rules. Provider-backed identity verification, automatically provisioned group accounts, real payment/fee collection and public web hosting remain pending. Profiles do not certify identity. No raw NIN is collected.
+
+Verification: both new migrations were applied together to live Supabase on 2026-10-11. All six SQL suites passed on live Supabase; synthetic records rolled back. The same suites passed in local PGlite with auth/storage fixtures. Flutter's 79 tests pass, static analysis is clean, and `flutter build web` succeeds. Phone/desktop render previews were reviewed; the actual local web landing loads in the Codex browser. This does not replace two-account acceptance testing of the new rules or provider onboarding. No APK packaging, Git push or public web deployment was performed in this phase.

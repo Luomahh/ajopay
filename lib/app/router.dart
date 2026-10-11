@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import '../features/profile/profile_screen.dart';
+import '../features/landing/landing_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -19,18 +21,25 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.listen(sessionUserIdProvider, (_, _) => refresh.refresh());
 
   final router = GoRouter(
-    initialLocation: '/sign-in',
+    initialLocation: kIsWeb ? '/' : '/sign-in',
     refreshListenable: refresh,
     redirect: (context, state) {
       final userId = ref.read(sessionUserIdProvider);
       final isOnAuthRoute =
           state.matchedLocation == '/sign-in' ||
           state.matchedLocation == '/sign-up';
-      if (userId == null && !isOnAuthRoute) return '/sign-in';
+      if (userId == null && !isOnAuthRoute && state.matchedLocation != '/') {
+        return '/sign-in';
+      }
       if (userId != null && isOnAuthRoute) return '/dashboard';
       return null;
     },
     routes: [
+      GoRoute(path: '/', builder: (context, state) => const LandingScreen()),
+      GoRoute(
+        path: '/profile',
+        builder: (context, state) => const ProfileScreen(),
+      ),
       GoRoute(
         path: '/groups/join',
         builder: (context, state) => const JoinGroupScreen(),

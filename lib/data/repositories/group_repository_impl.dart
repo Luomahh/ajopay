@@ -74,7 +74,7 @@ class GroupRepositoryImpl implements GroupRepository {
     final rows = await _client
         .from('savings_groups')
         .select(
-          'id,created_by,name,contribution_kobo,member_limit,first_payout_date,status,savings_mode,frequency,end_date,invite_code',
+          'id,created_by,name,contribution_kobo,member_limit,first_payout_date,status,savings_mode,frequency,end_date,invite_code,rules_version,payout_frequency,first_collection_date,late_fee_kobo',
         )
         .order('created_at', ascending: false);
     return rows.map(SavingsGroup.fromJson).toList();
@@ -88,7 +88,9 @@ class GroupRepositoryImpl implements GroupRepository {
     }
     return _request(() async {
       final response = await _client.rpc(
-        'create_savings_group_v2',
+        draft.rulesVersion >= 2
+            ? 'create_savings_group_v3'
+            : 'create_savings_group_v2',
         params: {
           'p_request_id': requestId,
           'p_name': draft.name.trim(),
@@ -97,6 +99,13 @@ class GroupRepositoryImpl implements GroupRepository {
           'p_first_payout_date': dateOnly(draft.firstPayoutDate),
           'p_savings_mode': draft.mode.name,
           'p_frequency': draft.frequency.name,
+          if (draft.rulesVersion >= 2) ...{
+            'p_payout_frequency':
+                (draft.payoutFrequency ?? draft.frequency).name,
+            'p_first_collection_date': dateOnly(
+              draft.firstCollectionDate ?? draft.firstPayoutDate,
+            ),
+          },
           'p_end_date': draft.endDate == null ? null : dateOnly(draft.endDate!),
         },
       );
@@ -133,10 +142,7 @@ class GroupRepositoryImpl implements GroupRepository {
   ]) => _request(() async {
     final response = await _client.rpc(
       function,
-      params: {
-        'p_group_id': id,
-        'p_terms_version': ?version,
-      },
+      params: {'p_group_id': id, 'p_terms_version': ?version},
     );
     return GroupDetails.fromJson(Map<String, dynamic>.from(response as Map));
   });

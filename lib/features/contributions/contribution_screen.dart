@@ -10,6 +10,8 @@ import '../../domain/entities/savings_group.dart';
 import '../auth/application/auth_providers.dart';
 import '../groups/group_providers.dart';
 import 'contribution_providers.dart';
+import '../groups/group_account.dart';
+import 'late_fee_panel.dart';
 import 'payment_dialog.dart';
 import 'receipt_viewer.dart';
 
@@ -32,6 +34,7 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
   bool busy = false;
   String? error;
   void refresh() {
+    ref.invalidate(lateFeesProvider(widget.groupId));
     ref.invalidate(contributionTrackerProvider(widget.groupId));
   }
 
@@ -150,6 +153,10 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
     final mine = t.payment(p.number, user);
     final expected = d.group.contributionKobo * d.members.length;
     final confirmed = t.confirmedKobo(p.number);
+    final outstandingMinimum = d.members.fold<int>(0, (sum, m) {
+      final c = t.payment(p.number, m.userId);
+      return sum + (c?.status == 'confirmed' ? 0 : d.group.contributionKobo);
+    });
     final overdue = t.periods
         .where(
           (p) =>
@@ -207,6 +214,12 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
                     ),
                   ),
                   const SizedBox(height: 18),
+                  GroupAccountPanel(groupId: d.group.id, canEdit: false),
+                  const SizedBox(height: 18),
+                  if (d.group.lateFeeKobo > 0) ...[
+                    LateFeePanel(details: d),
+                    const SizedBox(height: 18),
+                  ],
                   DropdownButtonFormField<int>(
                     initialValue: p.number,
                     isExpanded: true,
@@ -250,9 +263,15 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
                       children: [
                         title('My contribution'),
                         Text(
-                          formatNaira(d.group.contributionKobo),
+                          formatNaira(
+                            mine?.amountKobo ?? d.group.contributionKobo,
+                          ),
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
+                        if (d.group.allowsExtra)
+                          Text(
+                            'Minimum ${formatNaira(d.group.contributionKobo)} per period. You may save more.',
+                          ),
                         Text(
                           t.status(p, user),
                           style: const TextStyle(
@@ -322,7 +341,7 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
                             '${formatNaira(confirmed)} confirmed of ${formatNaira(expected)} expected',
                           ),
                           Text(
-                            '${formatNaira(expected - confirmed)} still unconfirmed. Pending reports do not count as received.',
+                            '${formatNaira(outstandingMinimum)} of required contributions still unconfirmed. Extra savings do not cover another member’s obligation.',
                           ),
                           const SizedBox(height: 10),
                           for (final m in d.members) reviewRow(d, t, p, m),
@@ -478,6 +497,8 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
       builder: (_) => PaymentDialog(
         groupId: d.group.id,
         amountKobo: d.group.contributionKobo,
+        allowExtra: d.group.allowsExtra,
+        lateFeeKobo: d.group.lateFeeKobo,
         period: p,
         today: t.today,
         existing: existing,

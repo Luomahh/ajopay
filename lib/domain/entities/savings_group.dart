@@ -61,6 +61,10 @@ class GroupDraft {
     this.mode = SavingsMode.rotating,
     this.frequency = SavingsFrequency.monthly,
     this.endDate,
+    this.rulesVersion = 1,
+    this.payoutFrequency,
+    this.firstCollectionDate,
+    this.lateFeeKobo = 0,
   });
 
   final String name;
@@ -70,9 +74,26 @@ class GroupDraft {
   final SavingsMode mode;
   final SavingsFrequency frequency;
   final DateTime? endDate;
+  final int rulesVersion, lateFeeKobo;
+  final SavingsFrequency? payoutFrequency;
+  final DateTime? firstCollectionDate;
+  bool get allowsExtra => rulesVersion >= 2 && mode == SavingsMode.target;
+  DateTime get lastContributionDate => mode == SavingsMode.target
+      ? endDate!
+      : contributionDate(
+          firstCollectionDate ?? firstPayoutDate,
+          payoutFrequency ?? frequency,
+          memberLimit - 1,
+        );
 
   int get contributionCount => mode == SavingsMode.rotating
-      ? memberLimit
+      ? (rulesVersion >= 2
+            ? scheduledContributions(
+                firstPayoutDate,
+                lastContributionDate,
+                frequency,
+              )
+            : memberLimit)
       : endDate == null
       ? 0
       : scheduledContributions(firstPayoutDate, endDate!, frequency);
@@ -101,6 +122,18 @@ class GroupDraft {
               DateTime(today.year + 2, today.month, today.day),
             ))) {
       return 'Choose an end date after the first contribution, within two years.';
+    }
+    if (rulesVersion >= 2 && mode == SavingsMode.rotating) {
+      final payout = payoutFrequency ?? frequency;
+      final first = firstCollectionDate ?? firstPayoutDate;
+      if (first.isBefore(firstPayoutDate) ||
+          first.isAfter(contributionDate(firstPayoutDate, payout, 1)) ||
+          (frequency == SavingsFrequency.monthly &&
+              payout != SavingsFrequency.monthly) ||
+          (frequency == SavingsFrequency.weekly &&
+              payout == SavingsFrequency.daily)) {
+        return 'Choose a payout frequency no faster than contributions, and a first payout within one payout interval of the first contribution.';
+      }
     }
     return null;
   }
@@ -138,6 +171,10 @@ class SavingsGroup {
     this.mode = SavingsMode.rotating,
     this.frequency = SavingsFrequency.monthly,
     this.endDate,
+    this.rulesVersion = 1,
+    this.payoutFrequency,
+    this.firstCollectionDate,
+    this.lateFeeKobo = 0,
     required this.status,
     this.inviteCode,
     this.ownerId,
@@ -151,6 +188,18 @@ class SavingsGroup {
   final SavingsMode mode;
   final SavingsFrequency frequency;
   final DateTime? endDate;
+  final int rulesVersion, lateFeeKobo;
+  final SavingsFrequency? payoutFrequency;
+  final DateTime? firstCollectionDate;
+  bool get allowsExtra => rulesVersion >= 2 && mode == SavingsMode.target;
+  DateTime get lastContributionDate => mode == SavingsMode.target
+      ? endDate!
+      : contributionDate(
+          firstCollectionDate ?? firstPayoutDate,
+          payoutFrequency ?? frequency,
+          memberLimit - 1,
+        );
+
   final String status;
   final String? inviteCode;
   final String? ownerId;
@@ -163,6 +212,14 @@ class SavingsGroup {
     memberLimit: json['member_limit'] as int,
     firstPayoutDate: DateTime.parse(json['first_payout_date'] as String),
     status: json['status'] as String,
+    rulesVersion: json['rules_version'] as int? ?? 1,
+    lateFeeKobo: json['late_fee_kobo'] as int? ?? 0,
+    payoutFrequency: json['payout_frequency'] == null
+        ? null
+        : SavingsFrequency.values.byName(json['payout_frequency'] as String),
+    firstCollectionDate: json['first_collection_date'] == null
+        ? null
+        : DateTime.parse(json['first_collection_date'] as String),
     mode: SavingsMode.values.byName(
       json['savings_mode'] as String? ?? 'rotating',
     ),

@@ -15,9 +15,13 @@ class PaymentDialog extends ConsumerStatefulWidget {
     required this.period,
     required this.today,
     this.existing,
+    this.allowExtra = false,
+    this.lateFeeKobo = 0,
   });
   final String groupId;
   final int amountKobo;
+  final bool allowExtra;
+  final int lateFeeKobo;
   final ContributionPeriod period;
   final DateTime today;
   final Contribution? existing;
@@ -27,6 +31,10 @@ class PaymentDialog extends ConsumerStatefulWidget {
 
 class _PaymentDialogState extends ConsumerState<PaymentDialog> {
   final form = GlobalKey<FormState>();
+  late final amount = TextEditingController(
+    text: ((widget.existing?.amountKobo ?? widget.amountKobo) / 100)
+        .toStringAsFixed(2),
+  );
   late final reference = TextEditingController(
     text: widget.existing?.reference ?? '',
   );
@@ -40,6 +48,7 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
   String? error;
   @override
   void dispose() {
+    amount.dispose();
     reference.dispose();
     note.dispose();
     super.dispose();
@@ -87,7 +96,9 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
         .submit(
           groupId: widget.groupId,
           period: widget.period.number,
-          amountKobo: widget.amountKobo,
+          amountKobo: widget.allowExtra
+              ? parseNairaToKobo(amount.text)!
+              : widget.amountKobo,
           reference: reference.text,
           paidOn: paidOn,
           expectedVersion: widget.existing?.version ?? 0,
@@ -119,6 +130,30 @@ class _PaymentDialogState extends ConsumerState<PaymentDialog> {
               Text(
                 '${formatNaira(widget.amountKobo)} for period ${widget.period.number}. Only record money you have already sent.',
               ),
+              if (widget.allowExtra)
+                TextFormField(
+                  controller: amount,
+                  enabled: !busy,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Amount paid (NGN)',
+                    helperText:
+                        'Minimum ${formatNaira(widget.amountKobo)}. Extra savings are yours.',
+                  ),
+                  validator: (v) {
+                    final n = parseNairaToKobo(v ?? '');
+                    return n == null || n < widget.amountKobo || n > 100000000
+                        ? 'Enter at least ${formatNaira(widget.amountKobo)}, up to NGN 1,000,000.'
+                        : null;
+                  },
+                ),
+              if (widget.lateFeeKobo > 0 &&
+                  paidOn.isAfter(widget.period.dueDate))
+                Text(
+                  'Late fee: ${formatNaira(widget.lateFeeKobo)}, separate from savings. Fee collection is not available yet. Do not include it in the contribution amount.',
+                ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: reference,

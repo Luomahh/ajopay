@@ -12,14 +12,7 @@ class AjoBrand extends StatelessWidget {
           color: AjoColors.forest,
           borderRadius: BorderRadius.all(Radius.circular(12)),
         ),
-        child: Padding(
-          padding: EdgeInsets.all(9),
-          child: Icon(
-            Icons.all_inclusive_rounded,
-            color: AjoColors.mint,
-            size: 25,
-          ),
-        ),
+        child: Padding(padding: EdgeInsets.all(9), child: AjoMark(size: 25)),
       ),
       SizedBox(width: 10),
       Text(
@@ -92,4 +85,52 @@ class AuthLayout extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// An A-shaped meeting point: three people building a shared savings circle.
+class AjoMark extends StatelessWidget {
+  const AjoMark({super.key, this.size = 32});
+  final double size;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: 'AjoPay logo',
+    child: CustomPaint(
+      size: Size.square(size),
+      painter: const _AjoMarkPainter(),
+    ),
+  );
+}
+
+class _AjoMarkPainter extends CustomPainter {
+  const _AjoMarkPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 32, size.height / 32);
+    final paint = Paint()
+      ..color = AjoColors.mint
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(
+      Path()
+        ..moveTo(5, 27)
+        ..lineTo(16, 8)
+        ..lineTo(27, 27),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(10, 22)
+        ..quadraticBezierTo(16, 17, 22, 22),
+      paint,
+    );
+    paint.style = PaintingStyle.fill;
+    canvas.drawCircle(const Offset(16, 3), 2.7, paint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

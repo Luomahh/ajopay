@@ -9,6 +9,8 @@ import '../../domain/entities/group_details.dart';
 import '../../domain/entities/savings_group.dart';
 import '../auth/application/auth_providers.dart';
 import 'group_providers.dart';
+import 'group_account.dart';
+import '../profile/member_profile_dialog.dart';
 
 class GroupDetailScreen extends ConsumerStatefulWidget {
   const GroupDetailScreen({super.key, required this.groupId});
@@ -219,6 +221,8 @@ class _GroupDetailState extends ConsumerState<GroupDetailScreen> {
                   ),
                   const SizedBox(height: 18),
                 ],
+                GroupAccountPanel(groupId: g.id, canEdit: owner && draft),
+                const SizedBox(height: 18),
                 if (draft && g.inviteCode != null) ...[
                   AjoPanel(
                     child: Column(
@@ -260,7 +264,7 @@ class _GroupDetailState extends ConsumerState<GroupDetailScreen> {
                     children: [
                       heading('Savings terms'),
                       Text(
-                        'Each member contributes ${formatNaira(g.contributionKobo)} every ${g.frequency.interval}.',
+                        'Each member contributes ${g.allowsExtra ? 'at least ' : 'exactly '}${formatNaira(g.contributionKobo)} every ${g.frequency.interval}.${g.allowsExtra ? ' Any extra paid belongs to that member.' : ''}',
                       ),
                       const SizedBox(height: 10),
                       Text(
@@ -268,13 +272,19 @@ class _GroupDetailState extends ConsumerState<GroupDetailScreen> {
                       ),
                       if (g.mode == SavingsMode.rotating)
                         Text(
-                          'One member receives the ${formatNaira(g.contributionKobo * g.memberLimit)} pot each round, for ${g.memberLimit} rounds.',
+                          g.rulesVersion >= 2
+                              ? 'One member receives accumulated scheduled contributions every ${(g.payoutFrequency ?? g.frequency).interval}, for ${g.memberLimit} payouts. First payout: ${dateOnly(g.firstCollectionDate ?? g.firstPayoutDate)}. Weekly contribution counts may differ between months.'
+                              : 'One member receives the ${formatNaira(g.contributionKobo * g.memberLimit)} pot each round, for ${g.memberLimit} rounds.',
                         ),
                       if (g.endDate != null)
                         Text('End date: ${dateOnly(g.endDate!)}'),
                       if (g.mode == SavingsMode.target)
                         Text(
-                          'Planned principal per member: ${formatNaira(g.contributionKobo * schedule.length)} across ${schedule.length} contributions.',
+                          '${g.allowsExtra ? 'Minimum planned savings' : 'Planned principal'} per member: ${formatNaira(g.contributionKobo * schedule.length)} across ${schedule.length} contributions.${g.allowsExtra ? ' Final payouts use actual confirmed savings.' : ''}',
+                        ),
+                      if (g.lateFeeKobo > 0)
+                        Text(
+                          'Late fee: ${formatNaira(g.lateFeeKobo)} once per missed deadline, starting the next day in Nigeria time. Payable to AjoPay separately from savings. Collection is not available yet.',
                         ),
                       const SizedBox(height: 12),
                       const Text(
@@ -319,6 +329,16 @@ class _GroupDetailState extends ConsumerState<GroupDetailScreen> {
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
+                                    TextButton(
+                                      onPressed: () => showDialog<void>(
+                                        context: context,
+                                        builder: (_) => MemberProfileDialog(
+                                          groupId: g.id,
+                                          userId: m.userId,
+                                        ),
+                                      ),
+                                      child: const Text('View profile'),
+                                    ),
                                     Text(
                                       '${m.role == 'owner' ? 'Leader · ' : ''}${m.acceptedVersion == d.version ? 'Terms confirmed' : 'Awaiting agreement'}',
                                       style: const TextStyle(
@@ -335,6 +355,30 @@ class _GroupDetailState extends ConsumerState<GroupDetailScreen> {
                     ],
                   ),
                 ),
+                if (g.rulesVersion >= 2 && d.payoutSchedule.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  AjoPanel(
+                    child: ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      title: const Text('Payout schedule'),
+                      subtitle: Text(
+                        '${g.memberLimit} turns · actual scheduled contributions',
+                      ),
+                      children: [
+                        for (final payout in d.payoutSchedule)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              '${payout.slot}. ${dateOnly(payout.date)} · ${d.member(payout.recipientId)?.name ?? 'Member'}',
+                            ),
+                            subtitle: Text(
+                              '${formatNaira(payout.amountKobo)} · ${payout.contributionCount} contribution deadlines per member',
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (schedule.isNotEmpty) ...[
                   const SizedBox(height: 18),
                   AjoPanel(

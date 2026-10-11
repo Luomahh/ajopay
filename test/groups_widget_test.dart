@@ -52,8 +52,8 @@ void main() {
       find.widgetWithText(TextFormField, 'Monthly contribution (NGN)'),
       '20000.50',
     );
-    await tester.ensureVisible(find.text('Choose first payout date'));
-    await tester.tap(find.text('Choose first payout date'));
+    await tester.ensureVisible(find.text('Choose first contribution date'));
+    await tester.tap(find.text('Choose first contribution date'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();

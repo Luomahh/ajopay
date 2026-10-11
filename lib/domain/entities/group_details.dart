@@ -67,7 +67,13 @@ class GroupDetails {
     if (periods.isNotEmpty) return periods;
     if (group.mode == SavingsMode.rotating && !orderPrepared) return const [];
     final count = group.mode == SavingsMode.rotating
-        ? group.memberLimit
+        ? (group.rulesVersion >= 2
+              ? scheduledContributions(
+                  group.firstPayoutDate,
+                  group.lastContributionDate,
+                  group.frequency,
+                )
+              : group.memberLimit)
         : scheduledContributions(
             group.firstPayoutDate,
             group.endDate!,
@@ -75,7 +81,7 @@ class GroupDetails {
           );
     return List.generate(count, (i) {
       String? recipient;
-      if (group.mode == SavingsMode.rotating) {
+      if (group.mode == SavingsMode.rotating && group.rulesVersion == 1) {
         for (final m in members) {
           if (m.position == i + 1) recipient = m.userId;
         }
@@ -84,6 +90,51 @@ class GroupDetails {
         number: i + 1,
         date: contributionDate(group.firstPayoutDate, group.frequency, i),
         recipientId: recipient,
+      );
+    });
+  }
+
+  List<
+    ({
+      int slot,
+      DateTime date,
+      String? recipientId,
+      int amountKobo,
+      int contributionCount,
+    })
+  >
+  get payoutSchedule {
+    if (group.mode != SavingsMode.rotating || !orderPrepared) return const [];
+    return List.generate(group.memberLimit, (i) {
+      final date = contributionDate(
+        group.firstCollectionDate ?? group.firstPayoutDate,
+        group.payoutFrequency ?? group.frequency,
+        i,
+      );
+      final previous = i == 0
+          ? null
+          : contributionDate(
+              group.firstCollectionDate ?? group.firstPayoutDate,
+              group.payoutFrequency ?? group.frequency,
+              i - 1,
+            );
+      final count = schedule
+          .where(
+            (p) =>
+                !p.date.isAfter(date) &&
+                (previous == null || p.date.isAfter(previous)),
+          )
+          .length;
+      String? recipient;
+      for (final m in members) {
+        if (m.position == i + 1) recipient = m.userId;
+      }
+      return (
+        slot: i + 1,
+        date: date,
+        recipientId: recipient,
+        amountKobo: count * group.contributionKobo * group.memberLimit,
+        contributionCount: count,
       );
     });
   }

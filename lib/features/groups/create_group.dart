@@ -28,6 +28,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   ).join();
   DateTime? _firstPayout;
   DateTime? _endDate;
+  DateTime? _collectionDate;
+  SavingsFrequency _payoutFrequency = SavingsFrequency.monthly;
   SavingsMode _mode = SavingsMode.rotating;
   SavingsFrequency _frequency = SavingsFrequency.monthly;
   bool _saving = false;
@@ -46,13 +48,21 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     if (_firstPayout == null) {
       setState(
         () => _error = _mode == SavingsMode.rotating
-            ? 'Choose a first payout date.'
+            ? 'Choose a first contribution date.'
             : 'Choose a first contribution date.',
       );
       return;
     }
     final draft = GroupDraft(
       name: _name.text.trim(),
+      rulesVersion: 2,
+      lateFeeKobo: 20000,
+      payoutFrequency: _mode == SavingsMode.rotating
+          ? _payoutFrequency
+          : _frequency,
+      firstCollectionDate: _mode == SavingsMode.rotating
+          ? (_collectionDate ?? _firstPayout!)
+          : _firstPayout!,
       contributionKobo: parseNairaToKobo(_amount.text)!,
       memberLimit: int.parse(_members.text.trim()),
       firstPayoutDate: _firstPayout!,
@@ -207,7 +217,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                     const SizedBox(height: 12),
                     Text(
                       _mode == SavingsMode.rotating
-                          ? 'One member receives the pot each period. Everyone keeps paying until all members have had a turn.'
+                          ? 'Every member pays the same fixed amount each contribution period. Choose a separate schedule for taking turns receiving the accumulated pot.'
                           : 'Everyone contributes regularly, then receives their own accumulated savings at the end. No interest is included.',
                     ),
                     const SizedBox(height: 16),
@@ -237,8 +247,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       ),
                       decoration: InputDecoration(
                         labelText: '${_frequency.label} contribution (NGN)',
-                        helperText:
-                            'The amount each person contributes every ${_frequency.interval}.',
+                        helperText: _mode == SavingsMode.target
+                            ? 'Minimum per person each ${_frequency.interval}. Members may save more, never less.'
+                            : 'Exact amount per person each ${_frequency.interval}. No overpayments.',
                       ),
                       onChanged: (_) => setState(() {}),
                       validator: (value) {
@@ -308,11 +319,68 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       label: Text(
                         _firstPayout == null
                             ? (_mode == SavingsMode.rotating
-                                  ? 'Choose first payout date'
+                                  ? 'Choose first contribution date'
                                   : 'Choose first contribution date')
-                            : '${_mode == SavingsMode.rotating ? 'First payout' : 'First contribution'}: ${dateOnly(_firstPayout!)}',
+                            : '${_mode == SavingsMode.rotating ? 'First contribution' : 'First contribution'}: ${dateOnly(_firstPayout!)}',
                       ),
                     ),
+                    if (_mode == SavingsMode.rotating) ...[
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<SavingsFrequency>(
+                        initialValue: _payoutFrequency,
+                        decoration: const InputDecoration(
+                          labelText: 'Payout frequency',
+                        ),
+                        items: SavingsFrequency.values
+                            .map(
+                              (f) => DropdownMenuItem(
+                                value: f,
+                                child: Text(f.label),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: _saving
+                            ? null
+                            : (v) => setState(() => _payoutFrequency = v!),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.event_available),
+                        label: Text(
+                          _collectionDate == null
+                              ? 'Choose first payout date'
+                              : 'First payout: ${dateOnly(_collectionDate!)}',
+                        ),
+                        onPressed: _saving
+                            ? null
+                            : () async {
+                                final now = DateTime.now();
+                                final first =
+                                    _firstPayout ??
+                                    DateTime(now.year, now.month, now.day + 1);
+                                final selected = await showDatePicker(
+                                  context: context,
+                                  initialDate:
+                                      _collectionDate != null &&
+                                          !_collectionDate!.isBefore(first)
+                                      ? _collectionDate!
+                                      : first,
+                                  firstDate: first,
+                                  lastDate: DateTime(
+                                    now.year + 2,
+                                    now.month,
+                                    now.day,
+                                  ),
+                                );
+                                if (mounted && selected != null) {
+                                  setState(() => _collectionDate = selected);
+                                }
+                              },
+                      ),
+                      const Text(
+                        'Each payout includes contributions scheduled after the previous payout and up to this payout date. Weekly totals vary with the number of deadlines in that month.',
+                      ),
+                    ],
                     if (_mode == SavingsMode.target) ...[
                       const SizedBox(height: 12),
                       OutlinedButton.icon(
@@ -382,7 +450,16 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                             Text(
                               formatNaira(
                                 _mode == SavingsMode.rotating
-                                    ? amount * members
+                                    ? amount *
+                                          members *
+                                          (_firstPayout != null
+                                              ? scheduledContributions(
+                                                  _firstPayout!,
+                                                  _collectionDate ??
+                                                      _firstPayout!,
+                                                  _frequency,
+                                                )
+                                              : 1)
                                     : amount *
                                           (_firstPayout != null &&
                                                   _endDate != null
@@ -397,13 +474,13 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                             ),
                             Text(
                               _mode == SavingsMode.rotating
-                                  ? 'Scheduled ${_frequency.label.toLowerCase()} pot'
-                                  : 'Planned savings per member · no interest',
+                                  ? 'First scheduled payout'
+                                  : 'Minimum planned savings per member · no interest',
                             ),
                             const SizedBox(height: 12),
                             Text(
                               _mode == SavingsMode.rotating
-                                  ? '$members members · $members ${_frequency.label.toLowerCase()} payouts'
+                                  ? '$members members · $members ${_payoutFrequency.label.toLowerCase()} payouts'
                                   : '$members members · ${_firstPayout != null && _endDate != null ? scheduledContributions(_firstPayout!, _endDate!, _frequency) : 0} scheduled contributions each',
                             ),
                             const SizedBox(height: 8),
@@ -418,7 +495,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                     ],
                     const SizedBox(height: 16),
                     const Text(
-                      'This saves a draft. Agree the members and payout order together before starting your round.',
+                      'Late-payment rule: NGN 200 once per missed deadline, from the next day in Nigeria time. This belongs to AjoPay, stays separate from savings, and is not currently collected in the app. Add the group bank account and agree the terms before activation.',
                     ),
                     if (_error != null) ...[
                       const SizedBox(height: 16),

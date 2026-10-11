@@ -112,8 +112,9 @@ class FakePayoutRepository implements PayoutRepository {
       'recipient_note': note,
     });
     if (received &&
-        (data['payouts'] as List).every((p) => p['status'] == 'confirmed'))
+        (data['payouts'] as List).every((p) => p['status'] == 'confirmed')) {
       data['group_status'] = 'completed';
+    }
     return getTracker(groupId);
   }
 }

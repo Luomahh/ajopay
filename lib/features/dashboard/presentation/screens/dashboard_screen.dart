@@ -18,8 +18,17 @@ class DashboardScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 76,
-        title: const AjoBrand(),
+        title: const FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: AjoBrand(),
+        ),
         actions: [
+          IconButton(
+            tooltip: 'Your profile',
+            icon: const Icon(Icons.person_outline_rounded),
+            onPressed: () => context.push('/profile'),
+          ),
           IconButton(
             tooltip: 'Sign out',
             icon: const Icon(Icons.logout_rounded),
@@ -72,10 +81,7 @@ class DashboardScreen extends ConsumerWidget {
                       children: [
                         const Row(
                           children: [
-                            Icon(
-                              Icons.all_inclusive_rounded,
-                              color: AjoColors.mint,
-                            ),
+                            Icon(Icons.groups_rounded, color: AjoColors.mint),
                             SizedBox(width: 10),
                             Expanded(
                               child: Text(
@@ -309,7 +315,9 @@ class _GroupCard extends ConsumerWidget {
           formatNaira(group.contributionKobo),
           style: Theme.of(context).textTheme.headlineSmall,
         ),
-        Text('per member, each ${group.frequency.interval}'),
+        Text(
+          '${group.allowsExtra ? 'minimum ' : ''}per member, each ${group.frequency.interval}',
+        ),
         Text(
           group.ownerId == ref.watch(sessionUserIdProvider)
               ? 'You lead this circle'
@@ -328,7 +336,9 @@ class _GroupCard extends ConsumerWidget {
         const SizedBox(height: 6),
         Text(
           group.mode == SavingsMode.rotating
-              ? 'Scheduled pot: ${formatNaira(group.contributionKobo * group.memberLimit)}'
+              ? (group.rulesVersion >= 2
+                    ? '${(group.payoutFrequency ?? group.frequency).label} payouts · accumulated contributions'
+                    : 'Scheduled pot: ${formatNaira(group.contributionKobo * group.memberLimit)}')
               : 'End date: ${dateOnly(group.endDate!)}',
         ),
         const SizedBox(height: 6),

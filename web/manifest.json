@@ -1,12 +1,12 @@
 {
-    "name": "ajopay",
-    "short_name": "ajopay",
+    "name": "AjoPay",
+    "short_name": "AjoPay",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#F5F7F3",
+    "theme_color": "#123F35",
+    "description": "Coordinate ajo and esusu savings with your circle.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

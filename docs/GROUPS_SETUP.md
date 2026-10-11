@@ -43,3 +43,7 @@ Flutter tests cover creation/join navigation, input validation, error recovery, 
 ## Next milestone
 
 Payout recording and recipient acknowledgement. Receipt-file uploads are also deferred; current payment evidence consists of the transfer reference and payment date. The saved schedule is planning data, not proof that money was received. AjoPay does not collect, hold, transfer, or invest money, and no interest is promised.
+
+## Payout milestone update — 2026-10-11
+
+Group details now opens **Track payouts**, with **View payout history** after completion. Payout recording, recipient acknowledgement, and completed-round history are implemented; see [payouts](PAYOUTS.md). The next step is full-round device acceptance and release polish.

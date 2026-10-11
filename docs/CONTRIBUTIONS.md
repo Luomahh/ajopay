@@ -26,7 +26,7 @@ Refresh to see another account's updates. This version does not use real-time su
 - Only the group leader reviews. Members submit only for themselves; identity is derived by the server.
 - Members can read only their own payment references/history. Leaders can read reports for their group. Other users and anonymous clients cannot access the tracker.
 - Tables have RLS enabled and no direct client read/write grants. Narrowly scoped RPCs validate authorization.
-- Do not enter card details, passwords, or PINs. Receipt image/file uploads are not implemented; current evidence is a transfer reference plus the paid date.
+- Do not enter card details, passwords, or PINs. Optional private screenshots and member notes were added on 2026-10-10; see [receipts and chat](RECEIPTS_AND_CHAT.md).
 
 ## Verification and manual acceptance
 

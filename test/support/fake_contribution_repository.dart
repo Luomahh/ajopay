@@ -34,6 +34,8 @@ class FakeContributionRepository implements ContributionRepository {
     required String reference,
     required DateTime paidOn,
     required int expectedVersion,
+    String? receiptPath,
+    String? paymentNote,
   }) async {
     submissions++;
     if (failure != null) return Result.failure(failure!);
@@ -46,6 +48,8 @@ class FakeContributionRepository implements ContributionRepository {
         paidOn: paidOn,
         status: 'pending',
         version: expectedVersion + 1,
+        receiptPath: receiptPath,
+        paymentNote: paymentNote,
       ),
     );
     return Result.success(tracker);
@@ -72,6 +76,8 @@ class FakeContributionRepository implements ContributionRepository {
         paidOn: c.paidOn,
         status: confirm ? 'confirmed' : 'rejected',
         version: version,
+        receiptPath: c.receiptPath,
+        paymentNote: c.paymentNote,
         note: note.isEmpty ? null : note,
       ),
     );

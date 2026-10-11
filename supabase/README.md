@@ -10,6 +10,7 @@ This directory versions the AjoPay backend alongside the Flutter client.
 | `migrations/202610070001_savings_modes.sql` | Rotating/target modes, contribution frequencies, invite codes, controlled joining |
 | `migrations/202610080001_group_activation.sql` | Member-scoped details, one-time payout order, explicit agreement, atomic activation/schedules |
 | `migrations/202610090001_contributions.sql` | Payment windows, member reports, leader review, duplicate protection, private audit history |
+| `migrations/202610100001_receipts_and_chat.sql` | Private immutable receipt storage, submission notes/evidence snapshots, member-only text chat |
 
 These migrations have already been applied to the current hosted project. Do not rerun them there. They are intentionally not silent on conflicting existing objects.
 
@@ -25,6 +26,7 @@ Run each SQL test as postgres in the Supabase SQL Editor against a suitably conf
 
 - `tests/draft_groups.sql`: base creation and authorization checks.
 - `tests/group_activation.sql`: joining, capacity, privacy, agreement, activation, and schedules.
+- `tests/receipts_and_chat.sql`: private Storage metadata access, immutable evidence, notes, history, chat authorization/retries/pagination; passed live on 2026-10-10.
 - `tests/contributions.sql`: payment windows, retries, correction/review, private reads, and audit history.
 
 The group activation suite passed live on 2026-10-08, and contribution suite on 2026-10-09. The older base draft suite is retained but was not separately executed in those milestones.

@@ -79,13 +79,17 @@ class ContributionRepositoryImpl implements ContributionRepository {
     required String reference,
     required DateTime paidOn,
     required int expectedVersion,
-  }) => request('submit_contribution', {
+    String? receiptPath,
+    String? paymentNote,
+  }) => request('submit_contribution_v2', {
     'p_group_id': groupId,
     'p_period': period,
     'p_amount_kobo': amountKobo,
     'p_reference': reference.trim(),
     'p_paid_on': dateOnly(paidOn),
     'p_expected_version': expectedVersion,
+    'p_receipt_path': receiptPath,
+    'p_payment_note': paymentNote?.trim(),
   });
   @override
   Future<Result<ContributionTracker>> review({

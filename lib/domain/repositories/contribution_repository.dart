@@ -10,6 +10,8 @@ abstract class ContributionRepository {
     required String reference,
     required DateTime paidOn,
     required int expectedVersion,
+    String? receiptPath,
+    String? paymentNote,
   });
   Future<Result<ContributionTracker>> review({
     required String groupId,

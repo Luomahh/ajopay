@@ -43,7 +43,7 @@ void main() {
     'submission derives identity on server and sends exact amount and version',
     () async {
       final r = repo((request) {
-        expect(request.url.path, '/rest/v1/rpc/submit_contribution');
+        expect(request.url.path, '/rest/v1/rpc/submit_contribution_v2');
         expect(jsonDecode(request.body), {
           'p_group_id': 'group',
           'p_period': 1,
@@ -51,6 +51,8 @@ void main() {
           'p_reference': 'bank-ref',
           'p_paid_on': '2026-10-09',
           'p_expected_version': 0,
+          'p_receipt_path': null,
+          'p_payment_note': null,
         });
         return http.Response(
           jsonEncode(fixture),

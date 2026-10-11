@@ -6,9 +6,11 @@ A Flutter app for coordinating rotating savings groups (ajo/esusu).
 
 Authentication, draft creation, invite-code joining, member agreement, activation, and agreed schedules are implemented. Groups support daily, weekly, or monthly contributions and either rotating payouts or saving to an end date.
 
-Active groups now have separate member contribution tracking and leader payment review. Members record external transfers with a reference and payment date. Leaders confirm receipt or return reports with a reason. Weekly payments can be recorded during the seven days ending on the scheduled deadline. One full contribution covers each period; overdue periods remain visible. Confirmed totals exclude pending and returned reports.
+Active groups now have separate member contribution tracking and leader payment review. Members record external transfers with a reference, payment date, optional screenshot, and optional note. Leaders confirm receipt or return reports with a reason. Weekly payments can be recorded during the seven days ending on the scheduled deadline. One full contribution covers each period; overdue periods remain visible. Confirmed totals exclude pending and returned reports.
 
-All four group/contribution migrations are applied to the matching Supabase project. Live rollback-only SQL suites have verified group lifecycle and contribution authorization. See [group setup](docs/GROUPS_SETUP.md), [contribution tracking](docs/CONTRIBUTIONS.md), and the [delivery plan](docs/DELIVERY_PLAN.md). Payout recording and recipient acknowledgement are next.
+All five group/contribution/chat migrations are applied to the matching Supabase project. Live rollback-only SQL suites have verified group lifecycle and contribution authorization. See [group setup](docs/GROUPS_SETUP.md), [contribution tracking](docs/CONTRIBUTIONS.md), and the [delivery plan](docs/DELIVERY_PLAN.md). Payout recording and recipient acknowledgement are next.
+
+Each group also has member-only text chat with automatic refresh. Receipts are private to the submitting member and group leader. See [receipts and chat](docs/RECEIPTS_AND_CHAT.md) for usage and verification.
 
 ## Stack
 

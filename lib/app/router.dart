@@ -10,6 +10,8 @@ import '../features/groups/create_group.dart';
 import '../features/groups/join_group.dart';
 import '../features/groups/group_detail.dart';
 import '../features/contributions/contribution_screen.dart';
+import '../features/chat/group_chat_screen.dart';
+import '../features/payouts/payout_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _AuthRouterRefresh();
@@ -53,6 +55,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/groups/:id/contributions',
         builder: (context, state) =>
             ContributionScreen(groupId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/groups/:id/payouts',
+        builder: (context, state) =>
+            PayoutScreen(groupId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/groups/:id/chat',
+        builder: (context, state) =>
+            GroupChatScreen(groupId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/groups/:id',

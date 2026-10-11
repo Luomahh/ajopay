@@ -69,6 +69,12 @@ Retain the working Flutter/Riverpod/GoRouter/Supabase stack. Add only structures
 - Payment evidence currently means a transfer reference and paid date. Private receipt uploads, automated bank verification, and payment processing are not implemented.
 - Next: record payouts and recipient acknowledgement; do not call a scheduled pot actual money collected.
 
+### Completed receipts and chat milestone — 2026-10-10
+- Optional PNG/JPG/WebP payment screenshots (5 MB maximum) and member notes, with private leader/uploader access and preserved submission evidence.
+- Group text chat with sender names, leader badges, pagination, retry protection, and five-second foreground refresh.
+- Fifth migration applied live; rollback-only receipt/chat authorization tests passed. Screenshots are evidence for manual review, not independent bank verification.
+- Next: payout recording and recipient acknowledgement.
+
 ### Planned milestones
 - Days 1–2: finish recovery; establish Git history; inspect Supabase schema and reproduce the original reported error; verify live auth.
 - Days 3–5: secure group create/join, membership, activation, and payout schedule.

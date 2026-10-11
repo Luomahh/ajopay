@@ -129,6 +129,8 @@ class _GroupDetailState extends ConsumerState<GroupDetailScreen> {
                       Text(
                         draft
                             ? 'BUILDING YOUR CIRCLE'
+                            : g.status == 'completed'
+                            ? 'YOUR CIRCLE IS COMPLETED'
                             : 'YOUR CIRCLE IS ACTIVE',
                         style: const TextStyle(
                           color: AjoColors.mint,
@@ -163,21 +165,46 @@ class _GroupDetailState extends ConsumerState<GroupDetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
+                OutlinedButton.icon(
+                  onPressed: () => context.push('/groups/${g.id}/chat'),
+                  icon: const Icon(Icons.chat_bubble_outline_rounded),
+                  label: const Text('Open group chat'),
+                ),
+                const SizedBox(height: 18),
                 if (!draft) ...[
                   AjoPanel(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         heading(
-                          owner ? 'Lead your circle' : 'Your contributions',
+                          g.status == 'completed'
+                              ? 'Your savings history'
+                              : owner
+                              ? 'Lead your circle'
+                              : 'Your contributions',
                         ),
                         Text(
-                          owner
+                          g.status == 'completed'
+                              ? 'All payouts have been acknowledged. Review the saved contribution and payout records.'
+                              : owner
                               ? 'Review payment reports and confirm what has been received.'
                               : 'Record your payment any day within the contribution window and track the leader’s review.',
                         ),
                         const SizedBox(height: 12),
                         FilledButton.icon(
+                          onPressed: () =>
+                              context.push('/groups/${g.id}/payouts'),
+                          icon: const Icon(
+                            Icons.account_balance_wallet_outlined,
+                          ),
+                          label: Text(
+                            g.status == 'completed'
+                                ? 'View payout history'
+                                : 'Track payouts',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        OutlinedButton.icon(
                           onPressed: () =>
                               context.push('/groups/${g.id}/contributions'),
                           icon: const Icon(Icons.receipt_long_outlined),
@@ -452,9 +479,11 @@ class _GroupDetailState extends ConsumerState<GroupDetailScreen> {
                     ),
                   )
                 else
-                  const AjoPanel(
+                  AjoPanel(
                     child: Text(
-                      'Your group is active. Membership and the agreed schedule are locked. Record external payments in Contributions; AjoPay does not collect money.',
+                      g.status == 'completed'
+                          ? 'This savings round is completed. Its membership, schedule, contributions and payout history are retained.'
+                          : 'Your group is active. Membership and the agreed schedule are locked. Record external payments in Contributions; AjoPay does not collect money.',
                     ),
                   ),
               ],

@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'package:ajopay/core/errors/result.dart';
+import 'package:ajopay/domain/entities/receipt_image.dart';
+import 'package:ajopay/features/contributions/receipt_service.dart';
 import 'package:ajopay/app/router.dart';
 import 'package:ajopay/core/errors/failure.dart';
 import 'package:ajopay/domain/entities/contribution.dart';
@@ -13,6 +17,30 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/fake_group_repository.dart';
 import 'support/fake_contribution_repository.dart';
 import 'widget_test.dart' show FakeAuthRepository;
+
+class FakeReceiptService implements ReceiptService {
+  int uploads = 0;
+  bool uploadFails = false;
+  @override
+  Future<Result<ReceiptImage?>> pick() async => Result.success(
+    ReceiptImage.parse(
+      base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
+      ),
+    ),
+  );
+  @override
+  Future<Result<String>> upload(String groupId, ReceiptImage image) async {
+    uploads++;
+    return uploadFails
+        ? const Result.failure(NetworkFailure('Upload interrupted'))
+        : const Result.success('group/member/receipt.png');
+  }
+
+  @override
+  Future<Result<String>> signedUrl(String path) async =>
+      const Result.failure(NetworkFailure('Receipt unavailable'));
+}
 
 void main() {
   final today = DateTime(2026, 10, 8);
@@ -37,6 +65,7 @@ void main() {
   );
   late FakeContributionRepository payments;
   late ProviderContainer container;
+  late FakeReceiptService receipts;
   Future<void> launch(
     WidgetTester tester, {
     String user = 'member',
@@ -91,8 +120,10 @@ void main() {
       ),
       userId: user,
     )..failure = failure;
+    receipts = FakeReceiptService();
     container = ProviderContainer(
       overrides: [
+        receiptServiceProvider.overrideWithValue(receipts),
         authRepositoryProvider.overrideWithValue(auth),
         groupRepositoryProvider.overrideWithValue(groups),
         contributionRepositoryProvider.overrideWithValue(payments),
@@ -220,6 +251,47 @@ void main() {
     expect(payments.tracker.payment(1, 'member')!.status, 'confirmed');
     expect(payments.reviews, 2);
   });
+
+  testWidgets(
+    'screenshot and optional note survive failed upload and submit together',
+    (tester) async {
+      await launch(tester);
+      await tester.ensureVisible(find.text('Record my payment'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Record my payment'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Transfer reference'),
+        'receipt-ref',
+      );
+      await tester.ensureVisible(find.text('Add payment screenshot'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add payment screenshot'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Note to leader (optional)'),
+        'Paid on Thursday',
+      );
+      receipts.uploadFails = true;
+      await tester.tap(find.text('Submit for review'));
+      await tester.pumpAndSettle();
+      expect(payments.submissions, 0);
+      expect(find.text('Upload interrupted'), findsOneWidget);
+      expect(find.text('Paid on Thursday'), findsOneWidget);
+      receipts.uploadFails = false;
+      await tester.tap(find.text('Submit for review'));
+      await tester.pumpAndSettle();
+      expect(
+        payments.tracker.payment(1, 'member')!.receiptPath,
+        'group/member/receipt.png',
+      );
+      expect(
+        payments.tracker.payment(1, 'member')!.paymentNote,
+        'Paid on Thursday',
+      );
+      expect(find.text('View screenshot'), findsOneWidget);
+    },
+  );
 
   testWidgets('future period cannot be submitted', (tester) async {
     await launch(tester);

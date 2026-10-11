@@ -10,6 +10,8 @@ import '../../domain/entities/savings_group.dart';
 import '../auth/application/auth_providers.dart';
 import '../groups/group_providers.dart';
 import 'contribution_providers.dart';
+import 'payment_dialog.dart';
+import 'receipt_viewer.dart';
 
 class ContributionScreen extends ConsumerStatefulWidget {
   const ContributionScreen({super.key, required this.groupId});
@@ -19,11 +21,9 @@ class ContributionScreen extends ConsumerStatefulWidget {
 }
 
 class _ContributionScreenState extends ConsumerState<ContributionScreen> {
-  final paymentReference = TextEditingController();
   final reviewNote = TextEditingController();
   @override
   void dispose() {
-    paymentReference.dispose();
     reviewNote.dispose();
     super.dispose();
   }
@@ -74,6 +74,11 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Group chat',
+            onPressed: () => context.push('/groups/${widget.groupId}/chat'),
+            icon: const Icon(Icons.chat_bubble_outline),
+          ),
+          IconButton(
             tooltip: 'Refresh payments',
             onPressed: busy ? null : refresh,
             icon: const Icon(Icons.refresh_rounded),
@@ -86,7 +91,7 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
         data: (r) => r.when(
           failure: (f) => problem(f.message, group: true),
           success: (d) {
-            if (d.group.status != 'active') {
+            if (d.group.status == 'draft') {
               return const Center(
                 child: Padding(
                   padding: EdgeInsets.all(24),
@@ -191,7 +196,9 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          leader
+                          d.group.status == 'completed'
+                              ? 'This round is completed. View your contribution history below.'
+                              : leader
                               ? 'See who has paid. Confirm money received.'
                               : 'Contribute at your pace, within each ${d.group.frequency.interval}.',
                           style: const TextStyle(color: AjoColors.mint),
@@ -226,7 +233,9 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
                   Text('Payment window: ${t.windowLabel(p)} · Nigeria time'),
                   const SizedBox(height: 8),
                   Text(
-                    d.group.frequency == SavingsFrequency.weekly
+                    d.group.status == 'completed'
+                        ? 'All scheduled payouts have been acknowledged. Contribution records are read-only.'
+                        : d.group.frequency == SavingsFrequency.weekly
                         ? 'Pay on any day in this seven-day window. One full contribution covers this week.'
                         : 'Pay on any day in this window. One full contribution covers this period.',
                   ),
@@ -254,6 +263,15 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
                         if (mine != null) ...[
                           Text('Paid on ${dateOnly(mine.paidOn)}'),
                           Text('Reference: ${mine.reference}'),
+                          if (mine.paymentNote?.isNotEmpty == true)
+                            Text('Your note: ${mine.paymentNote}'),
+                          if (mine.receiptPath != null)
+                            TextButton.icon(
+                              onPressed: () =>
+                                  showReceipt(context, ref, mine.receiptPath!),
+                              icon: const Icon(Icons.image_outlined),
+                              label: const Text('View screenshot'),
+                            ),
                           if (mine.note != null)
                             Text('Leader’s note: ${mine.note}'),
                         ],
@@ -264,7 +282,8 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
                               '$overdue past period(s) are not yet confirmed. Use the period selector to check them.',
                             ),
                           ),
-                        if (p.isOpen(t.today) &&
+                        if (d.group.status == 'active' &&
+                            p.isOpen(t.today) &&
                             (mine == null || mine.status == 'rejected')) ...[
                           const SizedBox(height: 12),
                           FilledButton.icon(
@@ -349,8 +368,27 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
                             title: Text(
                               '${leader ? '${d.member(h.userId)?.name ?? 'Member'} · ' : ''}${h.label}',
                             ),
-                            subtitle: Text(
-                              'Attempt ${h.version} · ${formatNaira(h.amountKobo)}\nReference: ${h.reference}${h.note == null ? '' : '\n${h.note}'}',
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Attempt ${h.version} · ${formatNaira(h.amountKobo)}\nReference: ${h.reference}${h.note == null ? '' : '\n${h.note}'}',
+                                ),
+                                if (h.paymentNote?.isNotEmpty == true)
+                                  Text('Member’s note: ${h.paymentNote}'),
+                                if (h.receiptPath != null)
+                                  TextButton.icon(
+                                    onPressed: () => showReceipt(
+                                      context,
+                                      ref,
+                                      h.receiptPath!,
+                                    ),
+                                    icon: const Icon(Icons.image_outlined),
+                                    label: const Text(
+                                      'View submitted screenshot',
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                       ],
@@ -398,6 +436,14 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
           if (c != null) ...[
             Text('${formatNaira(c.amountKobo)} · ${dateOnly(c.paidOn)}'),
             SelectableText('Reference: ${c.reference}'),
+            if (c.paymentNote?.isNotEmpty == true)
+              Text('Member’s note: ${c.paymentNote}'),
+            if (c.receiptPath != null)
+              TextButton.icon(
+                onPressed: () => showReceipt(context, ref, c.receiptPath!),
+                icon: const Icon(Icons.image_outlined),
+                label: const Text('View screenshot'),
+              ),
             if (c.note != null) Text(c.note!),
           ],
           if (c?.status == 'pending')
@@ -426,88 +472,18 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
     ContributionPeriod p,
     Contribution? existing,
   ) async {
-    final reference = paymentReference;
-    reference.text = existing?.reference ?? '';
-    DateTime paidOn = existing?.paidOn ?? t.today;
-    final form = GlobalKey<FormState>();
-    final accepted = await showDialog<bool>(
+    final saved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, update) => AlertDialog(
-          title: const Text('Record an external payment'),
-          content: SingleChildScrollView(
-            child: Form(
-              key: form,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    '${formatNaira(d.group.contributionKobo)} for period ${p.number}. Only record money you have already sent.',
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: reference,
-                    maxLength: 120,
-                    decoration: const InputDecoration(
-                      labelText: 'Transfer reference',
-                    ),
-                    validator: (v) => (v?.trim().length ?? 0) < 3
-                        ? 'Enter the reference from your transfer receipt.'
-                        : null,
-                  ),
-                  TextButton.icon(
-                    onPressed: () async {
-                      final chosen = await showDatePicker(
-                        context: ctx,
-                        initialDate: paidOn,
-                        firstDate: p.opensOn,
-                        lastDate: t.today,
-                      );
-                      if (chosen != null && ctx.mounted) {
-                        update(() => paidOn = chosen);
-                      }
-                    },
-                    icon: const Icon(Icons.calendar_today_outlined),
-                    label: Text('Paid on ${dateOnly(paidOn)}'),
-                  ),
-                  const Text(
-                    'The leader will confirm receipt. Do not share a PIN, password or card details.',
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (form.currentState!.validate()) Navigator.pop(ctx, true);
-              },
-              child: const Text('Submit for review'),
-            ),
-          ],
-        ),
+      barrierDismissible: false,
+      builder: (_) => PaymentDialog(
+        groupId: d.group.id,
+        amountKobo: d.group.contributionKobo,
+        period: p,
+        today: t.today,
+        existing: existing,
       ),
     );
-    final text = reference.text;
-    if (accepted == true && mounted) {
-      await action(
-        () => ref
-            .read(contributionRepositoryProvider)
-            .submit(
-              groupId: d.group.id,
-              period: p.number,
-              amountKobo: d.group.contributionKobo,
-              reference: text,
-              paidOn: paidOn,
-              expectedVersion: existing?.version ?? 0,
-            ),
-      );
-    }
+    if (saved == true && mounted) refresh();
   }
 
   Future<void> review(GroupDetails d, Contribution c, bool confirm) async {

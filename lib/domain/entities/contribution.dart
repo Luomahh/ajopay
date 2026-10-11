@@ -27,11 +27,13 @@ class Contribution {
     required this.status,
     required this.version,
     this.note,
+    this.receiptPath,
+    this.paymentNote,
   });
   final String userId, reference, status;
   final int period, amountKobo, version;
   final DateTime paidOn;
-  final String? note;
+  final String? note, receiptPath, paymentNote;
   factory Contribution.fromJson(Map<String, dynamic> j) => Contribution(
     userId: j['user_id'] as String,
     period: j['period_number'] as int,
@@ -40,6 +42,8 @@ class Contribution {
     paidOn: DateTime.parse(j['paid_on'] as String),
     status: j['status'] as String,
     version: j['version'] as int,
+    receiptPath: j['receipt_path'] as String?,
+    paymentNote: j['payment_note'] as String?,
     note: j['review_note'] as String? ?? j['note'] as String?,
   );
   String get label => switch (status) {

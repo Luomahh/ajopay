@@ -13,6 +13,27 @@ class FakeChat implements ChatRepository {
   final requests = <String>[];
   bool fail = false;
   @override
+  Future<Result<void>> remove(
+    String groupId,
+    int sequence, {
+    required bool everyone,
+  }) async {
+    final i = messages.indexWhere((m) => m.sequence == sequence);
+    final m = messages[i];
+    messages[i] = ChatMessage(
+      sequence: m.sequence,
+      userId: m.userId,
+      name: m.name,
+      body: everyone ? 'Message removed' : '',
+      createdAt: m.createdAt,
+      isLeader: m.isLeader,
+      removed: everyone,
+      hidden: !everyone,
+    );
+    return const Result.success(null);
+  }
+
+  @override
   Future<Result<List<ChatMessage>>> list(String groupId, {int? before}) async =>
       Result.success(List.of(messages));
   @override
@@ -54,6 +75,44 @@ void main() {
     await tester.pumpAndSettle();
     return repo;
   }
+
+  testWidgets('emoji, unsend and delete for me work at a narrow width', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final repo = await launch(tester);
+    await tester.tap(find.byTooltip('Emoji'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Insert 😀'));
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '😀',
+    );
+    await tester.tap(find.byTooltip('Emoji'));
+    await tester.tap(find.byTooltip('Send message'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Message options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Unsend for everyone'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Unsend'));
+    await tester.pumpAndSettle();
+    expect(find.text('Message removed'), findsOneWidget);
+    expect(repo.messages.single.removed, isTrue);
+    await tester.tap(find.byTooltip('Message options'));
+    await tester.pumpAndSettle();
+    expect(find.text('Unsend for everyone'), findsNothing);
+    await tester.tap(find.text('Delete for me'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete for me'));
+    await tester.pumpAndSettle();
+    expect(find.text('Message removed'), findsNothing);
+    expect(repo.messages.single.hidden, isTrue);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets(
     'chat preserves draft and request id after failure, then displays sent message',

@@ -21,7 +21,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.listen(sessionUserIdProvider, (_, _) => refresh.refresh());
 
   final router = GoRouter(
-    initialLocation: kIsWeb ? '/' : '/sign-in',
+    initialLocation: '/',
     refreshListenable: refresh,
     redirect: (context, state) {
       final userId = ref.read(sessionUserIdProvider);
@@ -31,10 +31,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (userId == null && !isOnAuthRoute && state.matchedLocation != '/') {
         return '/sign-in';
       }
-      if (userId != null && isOnAuthRoute) return '/dashboard';
+      if (userId != null &&
+          ref.read(authRepositoryProvider).needsContactDetails &&
+          state.matchedLocation != '/complete-profile') {
+        return '/complete-profile';
+      }
+      if (userId != null && (isOnAuthRoute || state.matchedLocation == '/')) {
+        return '/dashboard';
+      }
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/complete-profile',
+        builder: (context, state) =>
+            const ProfileScreen(requireCompletion: true),
+      ),
       GoRoute(path: '/', builder: (context, state) => const LandingScreen()),
       GoRoute(
         path: '/profile',

@@ -4,9 +4,14 @@ import '../../data/datasources/supabase_client_provider.dart';
 import '../auth/application/auth_providers.dart';
 import '../../core/widgets/ajo_ui.dart';
 import '../groups/group_providers.dart';
+import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/validators.dart';
+import '../auth/presentation/widgets/sign_out_button.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, this.requireCompletion = false});
+  final bool requireCompletion;
   @override
   ConsumerState<ProfileScreen> createState() => _ProfileState();
 }
@@ -16,7 +21,9 @@ class _ProfileState extends ConsumerState<ProfileScreen> {
   final name = TextEditingController(),
       phone = TextEditingController(),
       city = TextEditingController(),
-      bio = TextEditingController();
+      bio = TextEditingController(),
+      address = TextEditingController();
+  bool sharePhone = false, loaded = false;
   bool loading = true, saving = false;
   String? error;
   @override
@@ -27,6 +34,7 @@ class _ProfileState extends ConsumerState<ProfileScreen> {
 
   @override
   void dispose() {
+    address.dispose();
     name.dispose();
     phone.dispose();
     city.dispose();
@@ -51,7 +59,13 @@ class _ProfileState extends ConsumerState<ProfileScreen> {
           row?['display_name'] as String? ??
           client.auth.currentUser?.userMetadata?['full_name'] as String? ??
           '';
-      phone.text = row?['phone'] as String? ?? '';
+      phone.text =
+          row?['phone'] as String? ??
+          client.auth.currentUser?.userMetadata?['contact_phone'] as String? ??
+          '';
+      address.text = row?['home_address'] as String? ?? '';
+      sharePhone = row?['share_phone'] as bool? ?? false;
+      loaded = true;
       city.text = row?['city'] as String? ?? '';
       bio.text = row?['bio'] as String? ?? '';
       error = null;
@@ -62,7 +76,7 @@ class _ProfileState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> save() async {
-    if (saving || !form.currentState!.validate()) return;
+    if (saving || !loaded || !form.currentState!.validate()) return;
     setState(() {
       saving = true;
       error = null;
@@ -76,12 +90,30 @@ class _ProfileState extends ConsumerState<ProfileScreen> {
           .upsert({
             'user_id': id,
             'display_name': name.text.trim(),
-            'phone': phone.text.trim(),
+            'phone': Validators.normalizePhone(phone.text),
+            'home_address': address.text.trim(),
+            'share_phone': sharePhone,
             'city': city.text.trim(),
             'bio': bio.text.trim(),
           })
           .timeout(const Duration(seconds: 15));
+      await ref
+          .read(supabaseClientProvider)
+          .auth
+          .updateUser(
+            UserAttributes(
+              data: {
+                'full_name': name.text.trim(),
+                'contact_phone': Validators.normalizePhone(phone.text),
+              },
+            ),
+          )
+          .timeout(const Duration(seconds: 15));
       ref.invalidate(groupDetailsProvider);
+      if (mounted && widget.requireCompletion) {
+        context.go('/dashboard');
+        return;
+      }
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -95,7 +127,13 @@ class _ProfileState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Your profile')),
+    appBar: AppBar(
+      title: Text(
+        widget.requireCompletion ? 'Complete your account' : 'Your profile',
+      ),
+      automaticallyImplyLeading: !widget.requireCompletion,
+      actions: const [SignOutButton()],
+    ),
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 640),
@@ -119,13 +157,13 @@ class _ProfileState extends ConsumerState<ProfileScreen> {
                       ),
                       const SizedBox(height: 12),
                       const Text(
-                        'Your name, city and introduction are shared with members of your groups. Your phone number stays private.',
+                        'Your name, city and introduction are shared with members of your groups. Choose whether to share your phone number. Your home address is private.',
                       ),
                       const SizedBox(height: 24),
                       if (error != null) ...[
                         Text(error!),
                         TextButton(
-                          onPressed: load,
+                          onPressed: saving ? null : load,
                           child: const Text('Reload profile'),
                         ),
                       ],
@@ -159,16 +197,40 @@ class _ProfileState extends ConsumerState<ProfileScreen> {
                       ),
                       TextFormField(
                         controller: phone,
+                        validator: Validators.phone,
                         maxLength: 24,
                         enabled: !saving,
                         keyboardType: TextInputType.phone,
                         decoration: const InputDecoration(
-                          labelText: 'Phone number (private, optional)',
+                          labelText: 'Phone number',
+                        ),
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Share phone number with my groups'),
+                        subtitle: const Text(
+                          'Members can use it to contact you. Numbers are self-reported, not verified.',
+                        ),
+                        value: sharePhone,
+                        onChanged: saving
+                            ? null
+                            : (v) => setState(() => sharePhone = v),
+                      ),
+                      TextFormField(
+                        controller: address,
+                        enabled: !saving,
+                        maxLength: 300,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Home address (private, optional)',
+                          helperText:
+                              'Visible only in your own profile. Never included in shared profiles or PDFs.',
+                          helperMaxLines: 3,
                         ),
                       ),
                       const SizedBox(height: 16),
                       FilledButton(
-                        onPressed: saving ? null : save,
+                        onPressed: saving || !loaded ? null : save,
                         child: Text(saving ? 'Saving…' : 'Save profile'),
                       ),
                       const SizedBox(height: 24),
@@ -184,7 +246,7 @@ class _ProfileState extends ConsumerState<ProfileScreen> {
                             ),
                             SizedBox(height: 8),
                             Text(
-                              'These details are self-reported. Do not enter your NIN in your profile, payment notes or chat. Secure identity checks will be added before in-app payments launch.',
+                              'Your BVN and NIN are not collected or stored here. Secure provider verification will be added before in-app payments launch. Never put these identifiers in your introduction or chat.',
                             ),
                           ],
                         ),

@@ -8,6 +8,7 @@ import '../../../../core/widgets/ajo_ui.dart';
 import '../../../../domain/entities/savings_group.dart';
 import '../../../auth/application/auth_providers.dart';
 import '../../../groups/group_providers.dart';
+import '../../../auth/presentation/widgets/sign_out_button.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -29,20 +30,7 @@ class DashboardScreen extends ConsumerWidget {
             icon: const Icon(Icons.person_outline_rounded),
             onPressed: () => context.push('/profile'),
           ),
-          IconButton(
-            tooltip: 'Sign out',
-            icon: const Icon(Icons.logout_rounded),
-            onPressed: () async {
-              final result = await ref.read(authRepositoryProvider).signOut();
-              if (!context.mounted) return;
-              result.when(
-                success: (_) {},
-                failure: (failure) => ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(failure.message))),
-              );
-            },
-          ),
+          const SignOutButton(),
           const SizedBox(width: 12),
         ],
       ),
@@ -361,16 +349,6 @@ class _GroupCard extends ConsumerWidget {
             },
             icon: const Icon(Icons.copy_rounded),
             label: const Text('Copy invite code'),
-          ),
-        if (group.status == 'active')
-          FilledButton.icon(
-            onPressed: () => context.push('/groups/${group.id}/contributions'),
-            icon: const Icon(Icons.receipt_long_outlined),
-            label: Text(
-              group.ownerId == ref.watch(sessionUserIdProvider)
-                  ? 'Review group payments'
-                  : 'Track my contributions',
-            ),
           ),
         const SizedBox(height: 12),
         OutlinedButton.icon(

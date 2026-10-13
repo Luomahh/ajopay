@@ -6,6 +6,7 @@ import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/ajo_ui.dart';
 import '../../../../domain/repositories/auth_repository.dart';
 import '../../application/sign_up_controller.dart';
+import '../widgets/google_sign_in_button.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
@@ -19,9 +20,12 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _phoneController = TextEditingController();
+  bool _sharePhone = false;
 
   @override
   void dispose() {
+    _phoneController.dispose();
     _fullNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -36,6 +40,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       email: _emailController.text.trim(),
       password: _passwordController.text,
       fullName: _fullNameController.text.trim(),
+      phone: Validators.normalizePhone(_phoneController.text),
+      sharePhone: _sharePhone,
     );
 
     if (!mounted) return;
@@ -96,6 +102,31 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               decoration: const InputDecoration(labelText: 'Password'),
               validator: Validators.password,
             ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _phoneController,
+              enabled: !isLoading,
+              keyboardType: TextInputType.phone,
+              autofillHints: const [AutofillHints.telephoneNumber],
+              decoration: const InputDecoration(
+                labelText: 'Phone number',
+                helperText:
+                    'For account contact. This is not identity verification.',
+                helperMaxLines: 2,
+              ),
+              validator: Validators.phone,
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _sharePhone,
+              onChanged: isLoading
+                  ? null
+                  : (v) => setState(() => _sharePhone = v ?? false),
+              title: const Text(
+                'Share my phone number with members of my groups',
+              ),
+              subtitle: const Text('You can change this in your profile.'),
+            ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: isLoading ? null : _handleSubmit,
@@ -108,6 +139,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   : const Text('Sign Up'),
             ),
             const SizedBox(height: 12),
+            GoogleSignInButton(disabled: isLoading),
             TextButton(
               onPressed: () => context.go('/sign-in'),
               child: const Text('Already have an account? Sign in'),

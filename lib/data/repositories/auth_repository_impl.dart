@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import '../../core/utils/validators.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/errors/failure.dart';
@@ -18,16 +20,61 @@ class AuthRepositoryImpl implements AuthRepository {
   String? get currentUserId => _client.auth.currentUser?.id;
 
   @override
+  bool get needsContactDetails {
+    final user = _client.auth.currentUser;
+    return user != null &&
+        (Validators.phone(user.userMetadata?['contact_phone'] as String?) !=
+                null ||
+            Validators.fullName(user.userMetadata?['full_name'] as String?) !=
+                null);
+  }
+
+  @override
+  Future<Result<void>> signInWithGoogle() async {
+    try {
+      final launched = await _client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: kIsWeb
+            ? Uri(
+                scheme: Uri.base.scheme,
+                host: Uri.base.host,
+                port: Uri.base.hasPort ? Uri.base.port : null,
+                path: Uri.base.path,
+              ).toString()
+            : 'com.luomah.ajopay://login-callback/',
+        queryParams: {'prompt': 'select_account'},
+      );
+      return launched
+          ? const Result.success(null)
+          : const Result.failure(
+              AuthFailure('Could not open Google sign-in. Please try again.'),
+            );
+    } on AuthException catch (e) {
+      return Result.failure(AuthFailure(e.message));
+    } catch (_) {
+      return const Result.failure(
+        NetworkFailure('Google sign-in could not start. Please try again.'),
+      );
+    }
+  }
+
+  @override
   Future<Result<SignUpOutcome>> signUp({
     required String email,
     required String password,
     required String fullName,
+    required String phone,
+    bool sharePhone = false,
   }) async {
     try {
       final response = await _client.auth.signUp(
         email: email,
         password: password,
-        data: {'full_name': fullName},
+        data: {
+          'full_name': fullName,
+          'contact_phone': Validators.normalizePhone(phone),
+          'share_phone': sharePhone,
+        },
       );
 
       return Result.success(

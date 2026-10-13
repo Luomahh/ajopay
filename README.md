@@ -61,3 +61,7 @@ This is an early portfolio project. It does not currently collect, hold, or tran
 ### New group rules and web preview
 
 New drafts support separate contribution/payout schedules, minimum-plus-extra target savings, leader-supplied bank details, member profiles and a separate late-fee assessment. Existing groups retain their agreed terms. The web app has a responsive landing page and the app has a new AjoPay mark. See [rules and limitations](docs/FLEXIBLE_SAVINGS.md) and [web preview instructions](docs/WEB_PREVIEW.md). Identity verification, automatic account creation, in-app money movement and fee collection are not live.
+
+### Contact details and PDF records
+
+See [account, Google setup and statement guide](docs/GOOGLE_AND_STATEMENTS.md). Google OAuth still requires provider credentials and end-to-end testing. The 202610120001 contact/statement migration was applied and all seven rollback-only database suites passed on Supabase on 2026-10-12. The app has 85 passing tests, clean analysis and a successful web build. Google OAuth still awaits credentials and real-account callback testing.

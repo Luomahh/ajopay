@@ -30,7 +30,7 @@ begin
  if jsonb_array_length(d->'periods')<8 then raise exception 'contributions still tied to member count';end if;
  select count(*) into n from public.group_payout_schedule where group_id=gid;if n<>2 then raise exception 'payout count incorrect';end if;
  begin perform public.set_group_bank_account(gid,'Other Bank','Leader Name','0987654321');raise exception 'active account changed';exception when invalid_parameter_value then null;end;
- insert into public.member_profiles(user_id,display_name,phone,city,bio) values(leader,'Updated Leader','08012345678','Lagos','Saving for a goal');
+ insert into public.member_profiles(user_id,display_name,phone,city,bio) values(leader,'Updated Leader','08012345678','Lagos','Saving for a goal') on conflict(user_id) do update set display_name=excluded.display_name,phone=excluded.phone,city=excluded.city,bio=excluded.bio;
  perform set_config('request.jwt.claim.sub',member::text,true);d:=public.get_member_profile(gid,leader);
  if d->>'display_name'<>'Updated Leader' or d ? 'phone' then raise exception 'profile sharing wrong';end if;
  select count(*) into n from public.member_profiles where user_id=leader;if n<>0 then raise exception 'private profile leak';end if;

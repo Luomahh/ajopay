@@ -28,13 +28,18 @@ void main() {
   Future<AuthResponse> signUpCall() => auth.signUp(
     email: 'member@example.com',
     password: 'password123',
-    data: {'full_name': 'Ajo Member'},
+    data: {
+      'full_name': 'Ajo Member',
+      'contact_phone': '+2348012345678',
+      'share_phone': false,
+    },
   );
 
   Future<Result<SignUpOutcome>> signUp() => repository.signUp(
     email: 'member@example.com',
     password: 'password123',
     fullName: 'Ajo Member',
+    phone: '08012345678',
   );
 
   test('signup without a session requires email confirmation', () async {

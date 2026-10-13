@@ -56,6 +56,8 @@ class MemberProfileDialog extends ConsumerWidget {
                   const SizedBox(height: 12),
                   Text(p['city'] as String? ?? ''),
                   Text(p['bio'] as String? ?? ''),
+                  if (p['phone'] != null)
+                    SelectableText('Phone: ${p['phone']} (unverified)'),
                   const SizedBox(height: 16),
                   const Text(
                     'Self-reported profile · identity not verified. A profile is not a guarantee that someone will pay.',

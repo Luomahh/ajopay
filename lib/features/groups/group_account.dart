@@ -56,15 +56,21 @@ class GroupAccountPanel extends ConsumerWidget {
               if (row == null)
                 const Text('Your leader has not added a bank account yet.')
               else ...[
-                Text(row['bank_name'] as String),
-                SelectableText(
-                  row['account_number'] as String,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
+                for (final field in [
+                  ('Bank', 'bank_name'),
+                  ('Account number', 'account_number'),
+                  ('Account name', 'account_name'),
+                ]) ...[
+                  Text(field.$1, style: const TextStyle(fontSize: 12)),
+                  SelectableText(
+                    row[field.$2] as String,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                Text(row['account_name'] as String),
+                  const SizedBox(height: 10),
+                ],
                 TextButton.icon(
                   onPressed: () async {
                     await Clipboard.setData(

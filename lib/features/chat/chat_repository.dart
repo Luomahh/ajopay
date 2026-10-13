@@ -12,11 +12,13 @@ class ChatMessage {
     required this.body,
     required this.createdAt,
     required this.isLeader,
+    this.removed = false,
+    this.hidden = false,
   });
   final int sequence;
   final String userId, name, body;
   final DateTime createdAt;
-  final bool isLeader;
+  final bool isLeader, removed, hidden;
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
     sequence: j['sequence'] as int,
     userId: j['user_id'] as String,
@@ -24,10 +26,17 @@ class ChatMessage {
     body: j['body'] as String,
     createdAt: DateTime.parse(j['created_at'] as String),
     isLeader: j['is_leader'] as bool,
+    removed: j['removed'] == true,
+    hidden: j['hidden'] == true,
   );
 }
 
 abstract class ChatRepository {
+  Future<Result<void>> remove(
+    String groupId,
+    int sequence, {
+    required bool everyone,
+  });
   Future<Result<List<ChatMessage>>> list(String groupId, {int? before});
   Future<Result<int>> send(String groupId, String requestId, String body);
 }
@@ -82,6 +91,21 @@ class SupabaseChatRepository implements ChatRepository {
             )
             .toList();
       });
+  @override
+  Future<Result<void>> remove(
+    String groupId,
+    int sequence, {
+    required bool everyone,
+  }) => request(() async {
+    await client.rpc(
+      'remove_group_message',
+      params: {
+        'p_group_id': groupId,
+        'p_sequence': sequence,
+        'p_everyone': everyone,
+      },
+    );
+  });
   @override
   Future<Result<int>> send(String groupId, String requestId, String body) =>
       request(

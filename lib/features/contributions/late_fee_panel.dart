@@ -61,7 +61,7 @@ class LateFeePanel extends ConsumerWidget {
             ),
         const SizedBox(height: 12),
         const Text(
-          'Payable to AjoPay. Collection is not enabled yet. Do not add these fees to the group bank transfer or subtract them from savings.',
+          'Late-fee collection is paused. Unpaid fees do not block contributions or payouts. Do not add fees to the group bank transfer or subtract them from savings.',
           style: TextStyle(fontSize: 12),
         ),
       ],

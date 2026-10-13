@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../statements/statement_button.dart';
 import '../../core/errors/result.dart';
 import '../../core/widgets/ajo_ui.dart';
 import '../../domain/entities/contribution.dart';
@@ -71,8 +72,8 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
       appBar: AppBar(
         title: const Text('Contributions'),
         leading: IconButton(
-          tooltip: 'Group details',
-          onPressed: () => context.go('/groups/${widget.groupId}'),
+          tooltip: 'Home',
+          onPressed: () => context.go('/dashboard'),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         actions: [
@@ -197,7 +198,7 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
                           d.group.name,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 28,
+                            fontSize: 22,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -216,45 +217,46 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
                   const SizedBox(height: 18),
                   GroupAccountPanel(groupId: d.group.id, canEdit: false),
                   const SizedBox(height: 18),
-                  if (d.group.lateFeeKobo > 0) ...[
-                    LateFeePanel(details: d),
-                    const SizedBox(height: 18),
-                  ],
-                  DropdownButtonFormField<int>(
-                    initialValue: p.number,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Contribution period',
-                    ),
-                    items: [
-                      for (final period in t.periods)
-                        DropdownMenuItem(
-                          value: period.number,
-                          child: Text(
-                            '${period.number} · Due ${dateOnly(period.dueDate)}',
+                  AjoPanel(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        DropdownButtonFormField<int>(
+                          initialValue: p.number,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Contribution period',
                           ),
+                          items: [
+                            for (final period in t.periods)
+                              DropdownMenuItem(
+                                value: period.number,
+                                child: Text(
+                                  '${period.number} · Due ${dateOnly(period.dueDate)}',
+                                ),
+                              ),
+                          ],
+                          onChanged: busy
+                              ? null
+                              : (n) => setState(() {
+                                  selected = n;
+                                  error = null;
+                                }),
                         ),
-                    ],
-                    onChanged: busy
-                        ? null
-                        : (n) => setState(() {
-                            selected = n;
-                            error = null;
-                          }),
-                  ),
-                  const SizedBox(height: 14),
-                  Text('Payment window: ${t.windowLabel(p)} · Nigeria time'),
-                  const SizedBox(height: 8),
-                  Text(
-                    d.group.status == 'completed'
-                        ? 'All scheduled payouts have been acknowledged. Contribution records are read-only.'
-                        : d.group.frequency == SavingsFrequency.weekly
-                        ? 'Pay on any day in this seven-day window. One full contribution covers this week.'
-                        : 'Pay on any day in this window. One full contribution covers this period.',
-                  ),
-                  const Text(
-                    'Transfer outside AjoPay using the details agreed with your group. Recording a payment does not move money.',
-                    style: TextStyle(color: AjoColors.muted, fontSize: 13),
+                        const SizedBox(height: 14),
+                        Text(
+                          'Payment window: ${t.windowLabel(p)} · Nigeria time',
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          d.group.status == 'completed'
+                              ? 'All scheduled payouts have been acknowledged. Contribution records are read-only.'
+                              : d.group.frequency == SavingsFrequency.weekly
+                              ? 'Pay on any day in this seven-day window. One full contribution covers this week.'
+                              : 'Pay on any day in this window. One full contribution covers this period.',
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 18),
                   AjoPanel(
@@ -330,6 +332,12 @@ class _ContributionScreenState extends ConsumerState<ContributionScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 18),
+                  if (d.group.lateFeeKobo > 0) ...[
+                    LateFeePanel(details: d),
+                    const SizedBox(height: 18),
+                  ],
+                  StatementButton(groupId: d.group.id),
                   if (leader) ...[
                     const SizedBox(height: 18),
                     AjoPanel(

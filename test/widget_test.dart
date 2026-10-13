@@ -17,6 +17,15 @@ class FakeAuthRepository implements AuthRepository {
   final changes = StreamController<String?>.broadcast();
   @override
   String? currentUserId;
+  @override
+  bool needsContactDetails = false;
+  int googleCalls = 0;
+  @override
+  Future<Result<void>> signInWithGoogle() async {
+    googleCalls++;
+    return const Result.success(null);
+  }
+
   Failure? signInFailure;
   Failure? signOutFailure;
   int signInCalls = 0;
@@ -49,6 +58,8 @@ class FakeAuthRepository implements AuthRepository {
     required String email,
     required String password,
     required String fullName,
+    required String phone,
+    bool sharePhone = false,
   }) async {
     if (signUpOutcome == SignUpOutcome.signedIn) setUser('test-user');
     return Result.success(signUpOutcome);
@@ -86,6 +97,10 @@ void main() {
       UncontrolledProviderScope(container: container, child: const AjoPayApp()),
     );
     await tester.pumpAndSettle();
+    if (repository.currentUserId == null) {
+      container.read(routerProvider).go('/sign-in');
+      await tester.pumpAndSettle();
+    }
   }
 
   Future<void> fillSignUp(WidgetTester tester) async {
@@ -97,6 +112,8 @@ void main() {
       'member@example.com',
     );
     await tester.enterText(find.byType(TextFormField).at(2), 'password123');
+    await tester.enterText(find.byType(TextFormField).at(3), '08012345678');
+    await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Sign Up'));
     await tester.tap(find.widgetWithText(ElevatedButton, 'Sign Up'));
     await tester.pumpAndSettle();
   }
@@ -142,6 +159,8 @@ void main() {
     expect(container.read(routerProvider), same(router));
     await tester.tap(find.byTooltip('Sign out'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Log out'));
+    await tester.pumpAndSettle();
     expect(find.widgetWithText(ElevatedButton, 'Sign In'), findsOneWidget);
     expect(container.read(routerProvider), same(router));
   });
@@ -185,6 +204,8 @@ void main() {
     await launch(tester);
     await tester.tap(find.byTooltip('Sign out'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Log out'));
+    await tester.pumpAndSettle();
     expect(find.byTooltip('Sign out'), findsOneWidget);
     expect(find.text(const NetworkFailure().message), findsOneWidget);
   });
@@ -222,5 +243,43 @@ void main() {
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Sign Up'));
     expect(tester.takeException(), isNull);
+  });
+  testWidgets('logout cancellation preserves the session', (tester) async {
+    repository.currentUserId = 'restored-user';
+    await launch(tester);
+    await tester.tap(find.byTooltip('Sign out'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Stay signed in'));
+    await tester.pumpAndSettle();
+    expect(repository.currentUserId, 'restored-user');
+    expect(find.byTooltip('Sign out'), findsOneWidget);
+  });
+
+  testWidgets('signed out startup opens the landing page', (tester) async {
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: const AjoPayApp()),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      container.read(routerProvider).routeInformationProvider.value.uri.path,
+      '/',
+    );
+    expect(find.byType(TextFormField), findsNothing);
+  });
+
+  testWidgets('unconfigured Google sign in explains email fallback', (
+    tester,
+  ) async {
+    await launch(tester);
+    await tester.ensureVisible(find.text('Continue with Google'));
+    await tester.tap(find.text('Continue with Google'));
+    await tester.pumpAndSettle();
+    expect(repository.googleCalls, 0);
+    expect(
+      find.text(
+        'Google sign-in is not available yet. Please use email for now.',
+      ),
+      findsOneWidget,
+    );
   });
 }

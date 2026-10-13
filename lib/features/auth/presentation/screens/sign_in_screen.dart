@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/ajo_ui.dart';
 import '../../application/sign_in_controller.dart';
+import '../widgets/google_sign_in_button.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
@@ -87,6 +88,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   : const Text('Sign In'),
             ),
             const SizedBox(height: 12),
+            GoogleSignInButton(disabled: isLoading),
             TextButton(
               onPressed: () => context.go('/sign-up'),
               child: const Text("Don't have an account? Sign up"),

@@ -25,7 +25,9 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
       sending = false,
       initial = true,
       more = true,
-      foreground = true;
+      foreground = true,
+      emojiOpen = false,
+      removing = false;
   String? error, sendError, requestBody, requestId, user;
   int generation = 0;
   @override
@@ -52,6 +54,8 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
       error = null;
       sendError = null;
       more = true;
+      removing = false;
+      emojiOpen = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) load();
       });
@@ -74,7 +78,7 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
   }
 
   Future<void> load({bool older = false}) async {
-    if (fetching || user == null) return;
+    if (fetching || removing || user == null) return;
     fetching = true;
     final epoch = generation;
     final nearBottom =
@@ -84,7 +88,7 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
         ? scroll.position.maxScrollExtent
         : 0.0;
     final previousOffset = scroll.hasClients ? scroll.offset : 0.0;
-    final result = await ref
+    var result = await ref
         .read(chatRepositoryProvider)
         .list(
           widget.groupId,
@@ -92,6 +96,27 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
               ? messages.keys.reduce((a, b) => a < b ? a : b)
               : null,
         );
+    // Refresh loaded history too, so removals never remain stale below page one.
+    if (!older && result is Success<List<ChatMessage>> && messages.isNotEmpty) {
+      final oldest = messages.keys.reduce((a, b) => a < b ? a : b);
+      final refreshed = [...result.value];
+      var page = result.value;
+      while (page.length == 50 && page.first.sequence > oldest) {
+        if (!mounted || generation != epoch) return;
+        final next = await ref
+            .read(chatRepositoryProvider)
+            .list(widget.groupId, before: page.first.sequence);
+        if (next is! Success<List<ChatMessage>>) {
+          result = next;
+          break;
+        }
+        page = next.value;
+        refreshed.addAll(page);
+      }
+      if (result is Success<List<ChatMessage>>) {
+        result = Result.success(refreshed);
+      }
+    }
     if (!mounted || generation != epoch) return;
     setState(() {
       fetching = false;
@@ -112,7 +137,9 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
           for (final m in rows) {
             messages[m.sequence] = m;
           }
-          if (older || messages.length == rows.length) more = rows.length == 50;
+          if (older || messages.length == rows.length) {
+            more = rows.length >= 50 && rows.length % 50 == 0;
+          }
         },
         failure: (f) => error = f.message,
       );
@@ -132,7 +159,7 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
 
   Future<void> send() async {
     final body = text.text.trim();
-    if (sending || body.isEmpty) return;
+    if (sending || removing || body.isEmpty) return;
     if (body.length > 2000) {
       setState(() => sendError = 'Keep your message within 2,000 characters.');
       return;
@@ -164,6 +191,161 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
     if (result is Success<int>) await load();
   }
 
+  Future<void> removeMessage(ChatMessage message, bool everyone) async {
+    final epoch = generation;
+    if (removing) return;
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(everyone ? 'Unsend this message?' : 'Delete for you?'),
+        content: Text(
+          everyone
+              ? 'Your message will be replaced by “Message removed” for everyone. Someone may already have read or copied it.'
+              : 'This message will be hidden from your account. Other members will still see it.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(everyone ? 'Unsend' : 'Delete for me'),
+          ),
+        ],
+      ),
+    );
+    if (approved != true || !mounted || epoch != generation) return;
+    generation++;
+    final mutationEpoch = generation;
+    setState(() {
+      removing = true;
+      fetching = false;
+    });
+    final result = await ref
+        .read(chatRepositoryProvider)
+        .remove(widget.groupId, message.sequence, everyone: everyone);
+    if (!mounted || mutationEpoch != generation) return;
+    setState(() {
+      removing = false;
+      result.when(
+        success: (_) {
+          messages[message.sequence] = ChatMessage(
+            sequence: message.sequence,
+            userId: message.userId,
+            name: message.name,
+            body: 'Message removed',
+            createdAt: message.createdAt,
+            isLeader: message.isLeader,
+            removed: everyone,
+            hidden: !everyone,
+          );
+        },
+        failure: (f) => sendError = f.message,
+      );
+    });
+  }
+
+  void insertEmoji(String emoji) {
+    final selection = text.selection;
+    final start = selection.isValid ? selection.start : text.text.length;
+    final end = selection.isValid ? selection.end : text.text.length;
+    final updated = text.text.replaceRange(start, end, emoji);
+    if (updated.length > 2000) return;
+    text.value = TextEditingValue(
+      text: updated,
+      selection: TextSelection.collapsed(offset: start + emoji.length),
+    );
+  }
+
+  Widget bubble(ChatMessage m) {
+    final mine = m.userId == user;
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: FractionallySizedBox(
+        widthFactor: .9,
+        alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+        child: Align(
+          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 480),
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.fromLTRB(12, 4, 8, 8),
+            decoration: BoxDecoration(
+              color: mine ? AjoColors.mint : Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(16),
+                topRight: const Radius.circular(16),
+                bottomLeft: Radius.circular(mine ? 16 : 3),
+                bottomRight: Radius.circular(mine ? 3 : 16),
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x08000000),
+                  blurRadius: 3,
+                  offset: Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        '${mine ? 'You' : m.name}${m.isLeader ? ' · Leader' : ''}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AjoColors.forest,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      tooltip: 'Message options',
+                      enabled: !removing && !sending,
+                      padding: EdgeInsets.zero,
+                      iconSize: 16,
+                      onSelected: (value) =>
+                          removeMessage(m, value == 'unsend'),
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'hide',
+                          child: Text('Delete for me'),
+                        ),
+                        if (mine && !m.removed)
+                          const PopupMenuItem(
+                            value: 'unsend',
+                            child: Text('Unsend for everyone'),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                SelectableText(
+                  m.body,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontStyle: m.removed ? FontStyle.italic : FontStyle.normal,
+                    color: m.removed ? AjoColors.muted : null,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  stamp(m.createdAt),
+                  style: const TextStyle(fontSize: 10, color: AjoColors.muted),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final identity = ref.watch(sessionUserIdProvider);
@@ -180,18 +362,38 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
       error = null;
       sendError = null;
       more = true;
+      removing = false;
+      emojiOpen = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) load();
       });
     }
-    final rows = messages.values.toList()
+    final rows = messages.values.where((m) => !m.hidden).toList()
       ..sort((a, b) => a.sequence.compareTo(b.sequence));
     return Scaffold(
+      backgroundColor: const Color(0xFFF0F4EF),
       appBar: AppBar(
-        title: const Text('Group chat'),
+        backgroundColor: AjoColors.forest,
+        foregroundColor: Colors.white,
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Group chat'),
+            Text(
+              'Your circle · members only',
+              style: TextStyle(fontSize: 12, color: Colors.white70),
+            ),
+          ],
+        ),
         leading: IconButton(
           tooltip: 'Group details',
-          onPressed: () => context.go('/groups/${widget.groupId}'),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/groups/${widget.groupId}');
+            }
+          },
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         actions: [
@@ -208,13 +410,6 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
             constraints: const BoxConstraints(maxWidth: 760),
             child: Column(
               children: [
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  child: Text(
-                    'A conversation for this circle’s members. New messages refresh automatically.',
-                    style: TextStyle(color: AjoColors.muted, fontSize: 13),
-                  ),
-                ),
                 if (error != null)
                   Padding(
                     padding: const EdgeInsets.all(12),
@@ -235,7 +430,7 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
                           controller: scroll,
                           padding: const EdgeInsets.all(16),
                           children: [
-                            if (more && rows.isNotEmpty)
+                            if (more && messages.isNotEmpty)
                               TextButton(
                                 onPressed: fetching
                                     ? null
@@ -250,48 +445,34 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
                                   textAlign: TextAlign.center,
                                 ),
                               ),
-                            for (final m in rows)
-                              Align(
-                                alignment: m.userId == user
-                                    ? Alignment.centerRight
-                                    : Alignment.centerLeft,
-                                child: Container(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 520,
-                                  ),
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: m.userId == user
-                                        ? AjoColors.mint
-                                        : Colors.white,
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${m.userId == user ? 'You' : m.name}${m.isLeader ? ' · Leader' : ''}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          color: AjoColors.forest,
-                                        ),
+                            for (var i = 0; i < rows.length; i++) ...[
+                              if (i == 0 ||
+                                  day(rows[i].createdAt) !=
+                                      day(rows[i - 1].createdAt))
+                                Center(
+                                  child: Container(
+                                    margin: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white70,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      day(rows[i].createdAt),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AjoColors.muted,
                                       ),
-                                      const SizedBox(height: 5),
-                                      SelectableText(m.body),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        stamp(m.createdAt),
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          color: AjoColors.muted,
-                                        ),
-                                      ),
-                                    ],
+                                    ),
                                   ),
                                 ),
-                              ),
+                              bubble(rows[i]),
+                            ],
                           ],
                         ),
                 ),
@@ -305,11 +486,59 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
                       ),
                     ),
                   ),
+                if (emojiOpen)
+                  SizedBox(
+                    height: 110,
+                    child: SingleChildScrollView(
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        children: [
+                          for (final emoji in [
+                            '😀',
+                            '😊',
+                            '😂',
+                            '❤️',
+                            '👍',
+                            '🙏',
+                            '🎉',
+                            '✅',
+                            '💚',
+                            '💰',
+                            '👋',
+                            '🤝',
+                            '🙌',
+                            '👏',
+                            '🤔',
+                            '😅',
+                          ])
+                            IconButton(
+                              tooltip: 'Insert $emoji',
+                              onPressed: sending
+                                  ? null
+                                  : () => insertEmoji(emoji),
+                              icon: Text(
+                                emoji,
+                                style: const TextStyle(fontSize: 24),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
+                      IconButton(
+                        tooltip: 'Emoji',
+                        onPressed: () => setState(() => emojiOpen = !emojiOpen),
+                        icon: Icon(
+                          emojiOpen
+                              ? Icons.keyboard_outlined
+                              : Icons.emoji_emotions_outlined,
+                        ),
+                      ),
                       Expanded(
                         child: TextField(
                           controller: text,
@@ -320,6 +549,9 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
                           decoration: const InputDecoration(
                             labelText: 'Message your circle',
                             hintText: 'Write a message…',
+                            counterText: '',
+                            filled: true,
+                            fillColor: Colors.white,
                           ),
                         ),
                       ),
@@ -348,8 +580,13 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
     );
   }
 
+  String day(DateTime date) {
+    final d = date.toLocal();
+    return '${d.day}/${d.month}/${d.year}';
+  }
+
   String stamp(DateTime date) {
     final d = date.toLocal();
-    return '${d.day}/${d.month}/${d.year} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 }

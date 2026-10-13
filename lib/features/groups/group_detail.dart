@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../statements/statement_button.dart';
 import '../../core/errors/result.dart';
 import '../../core/widgets/ajo_ui.dart';
 import '../../domain/entities/group_details.dart';
@@ -60,6 +61,11 @@ class _GroupDetailState extends ConsumerState<GroupDetailScreen> {
         ),
         title: const Text('Your savings circle'),
         actions: [
+          IconButton(
+            tooltip: 'Group chat',
+            onPressed: () => context.push('/groups/${widget.groupId}/chat'),
+            icon: const Icon(Icons.chat_bubble_outline_rounded),
+          ),
           IconButton(
             tooltip: 'Refresh group',
             onPressed: busy
@@ -167,13 +173,9 @@ class _GroupDetailState extends ConsumerState<GroupDetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                OutlinedButton.icon(
-                  onPressed: () => context.push('/groups/${g.id}/chat'),
-                  icon: const Icon(Icons.chat_bubble_outline_rounded),
-                  label: const Text('Open group chat'),
-                ),
-                const SizedBox(height: 18),
                 if (!draft) ...[
+                  StatementButton(groupId: g.id),
+                  const SizedBox(height: 18),
                   AjoPanel(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,

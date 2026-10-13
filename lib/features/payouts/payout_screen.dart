@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
+import '../statements/statement_button.dart';
 import '../../core/widgets/ajo_ui.dart';
 import '../../domain/entities/payout.dart';
 import '../../domain/entities/savings_group.dart';
@@ -97,6 +98,8 @@ class _PayoutScreenState extends ConsumerState<PayoutScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  StatementButton(groupId: widget.groupId),
+                  const SizedBox(height: 18),
                   AjoPanel(
                     color: AjoColors.forest,
                     child: Column(

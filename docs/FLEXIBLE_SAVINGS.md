@@ -15,7 +15,7 @@ New drafts use rules version 2. Existing drafts and active/completed groups keep
 
 Leaders add an existing bank name, account holder name and 10-digit account number inside a draft. Group members can view/copy the account. Changes reset consent and increment the terms version; activation locks the account. New groups require bank details to activate. AjoPay does not create or verify this account. Verify the recipient name through the bank before transferring.
 
-Profiles contain a shared display name, optional city and introduction, plus an optional private phone number. Fellow members can open a profile from the member list. RLS and the group-scoped profile RPC prevent contact details from being exposed to peers or profiles being read by outsiders.
+Profiles contain a shared display name, optional city and introduction, plus a required contact phone that is private unless the owner opts in to group sharing. Fellow members can open a shared profile from the member list. RLS keeps the full profile and home address owner-only; the group-scoped profile RPC returns only shared fields.
 
 Identity verification is **not implemented**. There is no raw NIN field, upload, self-issued verified badge or numerical trust score. Provider-backed NIN verification and a server-enforced payment gate are required before launching in-app payments. Manual external-payment recording remains available for this prototype.
 
@@ -34,3 +34,5 @@ The local PostgreSQL-compatible PGlite run uses minimal auth/storage fixtures; l
 The owner does not yet have a payment-provider merchant account. An existing leader-supplied group account works for manual external transfers. Automatically provisioning an account per group, bank account ownership checks, secure identity verification, webhook reconciliation, refunds/disputes and collection of platform fees require provider onboarding and approved API access. Never embed provider secrets in Flutter or accept a browser-supplied payment status as settlement evidence.
 
 Provider references reviewed: [Paystack dedicated virtual accounts](https://paystack.com/docs/payments/dedicated-virtual-accounts/) and [Flutterwave NGN virtual accounts](https://developer.flutterwave.com/docs/ngn-virtual-accounts). Account-per-group provisioning must be confirmed with the chosen provider; customer account APIs should not be assumed to support pooled group custody automatically.
+
+Contact update (2026-10-12): phone is required for onboarding and remains private unless its owner enables group sharing. Home address is always owner-only. Phone numbers are self-reported, not verified. BVN/NIN are not collected.

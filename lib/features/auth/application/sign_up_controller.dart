@@ -12,6 +12,8 @@ class SignUpController extends AsyncNotifier<void> {
     required String email,
     required String password,
     required String fullName,
+    required String phone,
+    bool sharePhone = false,
   }) async {
     state = const AsyncLoading();
     final repo = ref.read(authRepositoryProvider);
@@ -19,6 +21,8 @@ class SignUpController extends AsyncNotifier<void> {
       email: email,
       password: password,
       fullName: fullName,
+      phone: phone,
+      sharePhone: sharePhone,
     );
     state = result.when(
       success: (_) => const AsyncData(null),

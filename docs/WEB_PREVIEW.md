@@ -1,6 +1,6 @@
 # Web feedback preview
 
-The Flutter web app now opens a public emerald landing page at `/`; sign-in and signup lead to the existing authenticated app. Mobile startup remains sign-in. The landing page uses stacked layouts on small screens and side-by-side sections on wide screens. Forms and trackers use bounded, scrollable layouts. The web manifest permits either orientation.
+The Flutter web app now opens a public emerald landing page at `/`; sign-in and signup lead to the existing authenticated app. Mobile startup uses the same landing page. The landing page uses stacked layouts on small screens and side-by-side sections on wide screens. Forms and trackers use bounded, scrollable layouts. The web manifest permits either orientation.
 
 The new code-native AjoPay mark replaces the infinity symbol and Flutter launcher assets on web, Android and iOS. Regenerate matching icons with `flutter test tool/generate_brand_assets.dart`.
 

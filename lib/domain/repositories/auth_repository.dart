@@ -7,11 +7,15 @@ abstract class AuthRepository {
   Stream<String?> authStateChanges();
 
   String? get currentUserId;
+  bool get needsContactDetails;
+  Future<Result<void>> signInWithGoogle();
 
   Future<Result<SignUpOutcome>> signUp({
     required String email,
     required String password,
     required String fullName,
+    required String phone,
+    bool sharePhone = false,
   });
 
   Future<Result<void>> signIn({

@@ -109,7 +109,7 @@ class GroupAccountPanel extends ConsumerWidget {
                 ),
               const SizedBox(height: 8),
               const Text(
-                'This account receives savings contributions only. It is not an AjoPay-created virtual account. Bank details are locked when the group starts.',
+                'This account receives savings contributions only. It is not an AjoPay-created virtual account.',
                 style: TextStyle(fontSize: 12),
               ),
             ],

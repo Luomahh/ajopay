@@ -1,5 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../groups/group_providers.dart';
+import '../notifications/notifications.dart';
+import '../../data/datasources/supabase_client_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
@@ -21,6 +25,8 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
   final scroll = ScrollController();
   final messages = <int, ChatMessage>{};
   Timer? timer;
+  ChatMessage? reply;
+  int? requestReply;
   bool fetching = false,
       sending = false,
       initial = true,
@@ -33,6 +39,11 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
   @override
   void initState() {
     super.initState();
+    scroll.addListener(() {
+      if (scroll.hasClients && scroll.position.extentAfter < 30) {
+        markVisibleChatRead();
+      }
+    });
     WidgetsBinding.instance.addObserver(this);
     timer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (foreground) load();
@@ -45,7 +56,9 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
     if (oldWidget.groupId != widget.groupId) {
       generation++;
       messages.clear();
+      lastRead = 0;
       text.clear();
+      reply = null;
       requestId = null;
       requestBody = null;
       fetching = false;
@@ -153,8 +166,30 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
         );
       } else if (nearBottom) {
         scroll.jumpTo(scroll.position.maxScrollExtent);
+        markVisibleChatRead();
       }
     });
+  }
+
+  int lastRead = 0;
+  Future<void> markVisibleChatRead() async {
+    if (messages.isEmpty || user == null) return;
+    final through = messages.keys.reduce((a, b) => a > b ? a : b);
+    if (through <= lastRead) return;
+    lastRead = through;
+    final epoch = generation;
+    try {
+      await ref
+          .read(supabaseClientProvider)
+          .rpc(
+            'mark_chat_read',
+            params: {'p_group_id': widget.groupId, 'p_through': through},
+          )
+          .timeout(const Duration(seconds: 10));
+      if (mounted && epoch == generation) ref.invalidate(notificationsProvider);
+    } catch (_) {
+      if (mounted && epoch == generation) lastRead = 0;
+    }
   }
 
   Future<void> send() async {
@@ -164,8 +199,9 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
       setState(() => sendError = 'Keep your message within 2,000 characters.');
       return;
     }
-    if (requestBody != body) {
+    if (requestBody != body || requestReply != reply?.sequence) {
       requestBody = body;
+      requestReply = reply?.sequence;
       requestId = newRequestId();
     }
     final epoch = generation;
@@ -175,13 +211,14 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
     });
     final result = await ref
         .read(chatRepositoryProvider)
-        .send(widget.groupId, requestId!, body);
+        .send(widget.groupId, requestId!, body, replyTo: requestReply);
     if (!mounted || generation != epoch) return;
     setState(() {
       sending = false;
       result.when(
         success: (_) {
           text.clear();
+          reply = null;
           requestBody = null;
           requestId = null;
         },
@@ -197,7 +234,7 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
     final approved = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(everyone ? 'Unsend this message?' : 'Delete for you?'),
+        title: Text(everyone ? 'Delete for everybody?' : 'Delete for you?'),
         content: Text(
           everyone
               ? 'Your message will be replaced by “Message removed” for everyone. Someone may already have read or copied it.'
@@ -210,7 +247,7 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(everyone ? 'Unsend' : 'Delete for me'),
+            child: Text(everyone ? 'Delete for everybody' : 'Delete for me'),
           ),
         ],
       ),
@@ -230,6 +267,7 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
       removing = false;
       result.when(
         success: (_) {
+          if (reply?.sequence == message.sequence) reply = null;
           messages[message.sequence] = ChatMessage(
             sequence: message.sequence,
             userId: message.userId,
@@ -258,6 +296,54 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
     );
   }
 
+  Future<void> messageActions(ChatMessage m, BuildContext anchor) async {
+    if (removing || sending) return;
+    final epoch = generation;
+    final box = anchor.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final origin = box.localToGlobal(Offset.zero, ancestor: overlay);
+    final action = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(
+          origin.dx,
+          origin.dy + box.size.height,
+          box.size.width,
+          0,
+        ),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        if (!m.removed)
+          const PopupMenuItem(value: 'reply', child: Text('Reply')),
+        if (!m.removed) const PopupMenuItem(value: 'copy', child: Text('Copy')),
+        const PopupMenuItem(value: 'hide', child: Text('Delete for me')),
+        if (m.userId == user && !m.removed)
+          const PopupMenuItem(
+            value: 'everyone',
+            child: Text('Delete for everybody'),
+          ),
+      ],
+    );
+    if (!mounted || epoch != generation || action == null) return;
+    final current = messages[m.sequence];
+    if (current == null || current.hidden) return;
+    if (action == 'reply' && !current.removed) {
+      setState(() => reply = current);
+    }
+    if (action == 'copy' && !current.removed) {
+      await Clipboard.setData(ClipboardData(text: current.body));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Message copied.')));
+      }
+    }
+    if (action == 'hide' || action == 'everyone') {
+      await removeMessage(current, action == 'everyone');
+    }
+  }
+
   Widget bubble(ChatMessage m) {
     final mine = m.userId == user;
     return Align(
@@ -267,78 +353,96 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
         alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
         child: Align(
           alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 480),
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.fromLTRB(12, 4, 8, 8),
-            decoration: BoxDecoration(
-              color: mine ? AjoColors.mint : Colors.white,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(16),
-                topRight: const Radius.circular(16),
-                bottomLeft: Radius.circular(mine ? 16 : 3),
-                bottomRight: Radius.circular(mine ? 3 : 16),
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x08000000),
-                  blurRadius: 3,
-                  offset: Offset(0, 1),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        '${mine ? 'You' : m.name}${m.isLeader ? ' · Leader' : ''}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: AjoColors.forest,
-                          fontSize: 12,
+          child: Builder(
+            builder: (bubbleContext) => Semantics(
+              button: true,
+              label: 'Message from ${m.name}. Hold for actions',
+              onLongPress: () => messageActions(m, bubbleContext),
+              child: GestureDetector(
+                key: ValueKey('message-${m.sequence}'),
+                onLongPress: () => messageActions(m, bubbleContext),
+                onSecondaryTap: () => messageActions(m, bubbleContext),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 480),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.fromLTRB(12, 4, 8, 8),
+                  decoration: BoxDecoration(
+                    color: mine ? AjoColors.mint : Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: Radius.circular(mine ? 16 : 3),
+                      bottomRight: Radius.circular(mine ? 3 : 16),
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x08000000),
+                        blurRadius: 3,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              '${mine ? 'You' : m.name}${m.isLeader ? ' · Leader' : ''}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: AjoColors.forest,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (m.replyTo != null && !m.removed)
+                        Container(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0x0F123F35),
+                            border: const Border(
+                              left: BorderSide(
+                                color: AjoColors.emerald,
+                                width: 3,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            m.replyBody ?? 'Message unavailable',
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      Text(
+                        m.body,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontStyle: m.removed
+                              ? FontStyle.italic
+                              : FontStyle.normal,
+                          color: m.removed ? AjoColors.muted : null,
                         ),
                       ),
-                    ),
-                    PopupMenuButton<String>(
-                      tooltip: 'Message options',
-                      enabled: !removing && !sending,
-                      padding: EdgeInsets.zero,
-                      iconSize: 16,
-                      onSelected: (value) =>
-                          removeMessage(m, value == 'unsend'),
-                      itemBuilder: (_) => [
-                        const PopupMenuItem(
-                          value: 'hide',
-                          child: Text('Delete for me'),
+                      const SizedBox(height: 4),
+                      Text(
+                        stamp(m.createdAt),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AjoColors.muted,
                         ),
-                        if (mine && !m.removed)
-                          const PopupMenuItem(
-                            value: 'unsend',
-                            child: Text('Unsend for everyone'),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-                SelectableText(
-                  m.body,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontStyle: m.removed ? FontStyle.italic : FontStyle.normal,
-                    color: m.removed ? AjoColors.muted : null,
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  stamp(m.createdAt),
-                  style: const TextStyle(fontSize: 10, color: AjoColors.muted),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -348,12 +452,22 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
 
   @override
   Widget build(BuildContext context) {
+    final group = ref.watch(groupDetailsProvider(widget.groupId));
+    final groupName =
+        group.asData?.value.when(
+          success: (details) => details.group.name,
+          failure: (_) => 'Your circle',
+        ) ??
+        'Your circle';
     final identity = ref.watch(sessionUserIdProvider);
     if (identity != user) {
       user = identity;
       generation++;
       messages.clear();
+      lastRead = 0;
       text.clear();
+      reply = null;
+      requestReply = null;
       requestId = null;
       requestBody = null;
       fetching = false;
@@ -375,12 +489,12 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
       appBar: AppBar(
         backgroundColor: AjoColors.forest,
         foregroundColor: Colors.white,
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Group chat'),
-            Text(
-              'Your circle · members only',
+            Text(groupName, maxLines: 1, overflow: TextOverflow.ellipsis),
+            const Text(
+              'Members only',
               style: TextStyle(fontSize: 12, color: Colors.white70),
             ),
           ],
@@ -484,6 +598,28 @@ class _GroupChatState extends ConsumerState<GroupChatScreen>
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.error,
                       ),
+                    ),
+                  ),
+                if (reply != null)
+                  ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.reply),
+                    title: Text(
+                      'Reply to ${reply!.userId == user ? 'yourself' : reply!.name}',
+                    ),
+                    subtitle: Text(
+                      messages[reply!.sequence]?.removed == true
+                          ? 'Message removed'
+                          : reply!.body,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: IconButton(
+                      tooltip: 'Cancel reply',
+                      onPressed: sending
+                          ? null
+                          : () => setState(() => reply = null),
+                      icon: const Icon(Icons.close),
                     ),
                   ),
                 if (emojiOpen)

@@ -6,11 +6,15 @@ import 'package:ajopay/features/auth/application/auth_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ajopay/features/groups/group_providers.dart';
+import 'package:ajopay/domain/entities/savings_group.dart';
+import 'support/fake_group_repository.dart';
 import 'widget_test.dart' show FakeAuthRepository;
 
 class FakeChat implements ChatRepository {
   final messages = <ChatMessage>[];
   final requests = <String>[];
+  int? lastReply;
   bool fail = false;
   @override
   Future<Result<void>> remove(
@@ -40,9 +44,11 @@ class FakeChat implements ChatRepository {
   Future<Result<int>> send(
     String groupId,
     String requestId,
-    String body,
-  ) async {
+    String body, {
+    int? replyTo,
+  }) async {
     requests.add(requestId);
+    lastReply = replyTo;
     if (fail) return const Result.failure(NetworkFailure('Send interrupted'));
     messages.add(
       ChatMessage(
@@ -66,6 +72,19 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          groupRepositoryProvider.overrideWithValue(
+            FakeGroupRepository()
+              ..groups.add(
+                SavingsGroup(
+                  id: 'group',
+                  name: 'October circle',
+                  contributionKobo: 1000000,
+                  memberLimit: 2,
+                  firstPayoutDate: DateTime(2026, 10, 20),
+                  status: 'active',
+                ),
+              ),
+          ),
           chatRepositoryProvider.overrideWithValue(repo),
           authRepositoryProvider.overrideWithValue(auth),
         ],
@@ -93,17 +112,17 @@ void main() {
     await tester.tap(find.byTooltip('Emoji'));
     await tester.tap(find.byTooltip('Send message'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Message options'));
+    await tester.longPress(find.byKey(const ValueKey('message-1')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Unsend for everyone'));
+    await tester.tap(find.text('Delete for everybody'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Unsend'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete for everybody'));
     await tester.pumpAndSettle();
     expect(find.text('Message removed'), findsOneWidget);
     expect(repo.messages.single.removed, isTrue);
-    await tester.tap(find.byTooltip('Message options'));
+    await tester.longPress(find.byKey(const ValueKey('message-1')));
     await tester.pumpAndSettle();
-    expect(find.text('Unsend for everyone'), findsNothing);
+    expect(find.text('Delete for everybody'), findsNothing);
     await tester.tap(find.text('Delete for me'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Delete for me'));
@@ -111,6 +130,29 @@ void main() {
     expect(find.text('Message removed'), findsNothing);
     expect(repo.messages.single.hidden, isTrue);
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('group title and long press reply preserve the parent', (
+    tester,
+  ) async {
+    final repo = await launch(tester);
+    expect(find.text('October circle'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'Original');
+    await tester.tap(find.byTooltip('Send message'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Message options'), findsNothing);
+    await tester.longPress(find.byKey(const ValueKey('message-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Copy'), findsOneWidget);
+    await tester.tap(find.text('Reply'));
+    await tester.pumpAndSettle();
+    expect(find.text('Reply to yourself'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'Reply');
+    await tester.tap(find.byTooltip('Send message'));
+    await tester.pumpAndSettle();
+    expect(repo.lastReply, 1);
+    expect(find.text('Reply to yourself'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 

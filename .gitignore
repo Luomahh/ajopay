@@ -58,3 +58,10 @@ app.*.map.json
 *.key
 supabase/.temp/
 supabase/.branches/
+
+# Local verification caches
+__pycache__/
+*.pyc
+
+# Embedded SQL test dependencies
+supabase/testing/node_modules/

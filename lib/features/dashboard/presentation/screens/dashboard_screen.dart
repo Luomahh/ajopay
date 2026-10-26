@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme.dart';
+import '../../../../core/widgets/home_navigation.dart';
+import '../../../notifications/notifications.dart';
 import '../../../../core/widgets/ajo_ui.dart';
 import '../../../../domain/entities/savings_group.dart';
 import '../../../auth/application/auth_providers.dart';
@@ -25,15 +27,12 @@ class DashboardScreen extends ConsumerWidget {
           child: AjoBrand(),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Your profile',
-            icon: const Icon(Icons.person_outline_rounded),
-            onPressed: () => context.push('/profile'),
-          ),
+          const NotificationBell(),
           const SignOutButton(),
           const SizedBox(width: 12),
         ],
       ),
+      bottomNavigationBar: const HomeNavigation(index: 0),
       body: SafeArea(
         top: false,
         child: Align(
@@ -273,12 +272,14 @@ class _GroupCard extends ConsumerWidget {
   final SavingsGroup group;
   @override
   Widget build(BuildContext context, WidgetRef ref) => AjoPanel(
+    padding: const EdgeInsets.all(16),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             const CircleAvatar(
+              radius: 18,
               backgroundColor: AjoColors.mint,
               child: Icon(
                 Icons.people_outline_rounded,
@@ -294,14 +295,14 @@ class _GroupCard extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 8),
         Text(
           group.status == 'draft' ? 'Draft · round not started' : group.status,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 6),
         Text(
           formatNaira(group.contributionKobo),
-          style: Theme.of(context).textTheme.headlineSmall,
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
         ),
         Text(
           '${group.allowsExtra ? 'minimum ' : ''}per member, each ${group.frequency.interval}',
@@ -315,9 +316,9 @@ class _GroupCard extends ConsumerWidget {
             fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 6),
         const Divider(color: AjoColors.line),
-        const SizedBox(height: 10),
+        const SizedBox(height: 4),
         Text(
           '${group.memberLimit} planned members · ${group.mode == SavingsMode.rotating ? 'Rotating payouts' : 'Save to an end date'}',
         ),

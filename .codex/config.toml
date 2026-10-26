@@ -1,0 +1,11 @@
+# Project-scoped marketplace discovery. No secrets or source uploads.
+[mcp_servers.agensi]
+url = "https://mcp.agensi.io/mcp"
+enabled = true
+required = false
+enabled_tools = ["search_skills", "get_popular", "get_skill"]
+startup_timeout_sec = 20
+tool_timeout_sec = 45
+# get_skill can purchase when confirm=true: require an explicit tool approval.
+[mcp_servers.agensi.tools.get_skill]
+approval_mode = "prompt"

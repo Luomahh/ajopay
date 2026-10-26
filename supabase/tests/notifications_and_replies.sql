@@ -1,0 +1,68 @@
+begin;
+insert into auth.users(id,email,raw_user_meta_data) values
+('00000000-0000-4000-8000-000000000901','notify-leader@example.invalid','{"full_name":"Leader"}'),
+('00000000-0000-4000-8000-000000000902','notify-member@example.invalid','{"full_name":"Member"}'),
+('00000000-0000-4000-8000-000000000903','notify-outsider@example.invalid','{"full_name":"Outsider"}');
+do $$
+declare g jsonb; gid uuid; seq bigint; response bigint; t jsonb; today date:=(now() at time zone 'Africa/Lagos')::date; member_id uuid:='00000000-0000-4000-8000-000000000902'; leader_id uuid:='00000000-0000-4000-8000-000000000901'; n integer; other uuid;
+begin
+execute 'set local role authenticated';
+perform set_config('request.jwt.claim.sub',leader_id::text,true);
+g:=public.create_savings_group_v2(repeat('b',32),'Notifications weekly',1000000,2,today+3,'target','weekly',today+10);gid:=(g->>'id')::uuid;
+seq:=public.send_group_message(gid,repeat('1',32),'Original message');
+perform set_config('request.jwt.claim.sub',member_id::text,true);
+perform public.join_savings_group(g->>'invite_code');perform public.accept_group_terms(gid,1);
+insert into public.notification_preferences(user_id,email_enabled,sms_enabled) values(member_id,true,true);
+response:=public.send_group_reply(gid,repeat('2',32),'Reply text',seq);
+if public.send_group_reply(gid,repeat('2',32),'Reply text',seq)<>response then raise exception 'duplicate reply';end if;
+begin perform public.send_group_reply(gid,repeat('2',32),'Reply text',null);raise exception 'changed reply accepted';exception when invalid_parameter_value then null;end;
+t:=public.list_group_messages(gid,null);
+if t->1->>'reply_body'<>'Original message' then raise exception 'reply preview failed';end if;
+perform set_config('request.jwt.claim.sub',leader_id::text,true);
+t:=public.get_member_notifications();
+if (t->>'unread')::int<>1 or t->'items'->0->>'kind'<>'chat' then raise exception 'chat notification missing';end if;
+perform public.mark_chat_read(gid,response);
+if (public.get_member_notifications()->>'unread')::int<>0 then raise exception 'chat read failed';end if;
+perform public.remove_group_message(gid,seq,true);
+perform set_config('request.jwt.claim.sub',member_id::text,true);
+if public.list_group_messages(gid,null)->1->>'reply_body'<>'Message unavailable' then raise exception 'deleted reply leaked';end if;
+begin perform public.send_group_reply(gid,repeat('3',32),'No',seq);raise exception 'reply to removed parent';exception when invalid_parameter_value then null;end;
+perform set_config('request.jwt.claim.sub',leader_id::text,true);
+perform public.accept_group_terms(gid,1);perform public.activate_savings_group(gid,1);
+execute 'reset role';
+perform public.prepare_member_reminders(member_id,today-3);
+perform public.prepare_member_reminders(member_id,today-3);
+perform public.prepare_member_reminders(member_id,today-2);
+perform public.prepare_member_reminders(member_id,today);
+perform public.prepare_member_reminders(member_id,today+3);
+select count(*) into n from public.member_notifications where user_id=member_id and kind='reminder';
+if n<>3 then raise exception 'weekly cadence or dedupe incorrect: %',n;end if;
+select count(*) into n from public.notification_outbox o join public.member_notifications n on n.id=o.notification_id where n.user_id=member_id and n.kind='reminder';
+if n<>6 then raise exception 'opt in queue incorrect';end if;
+execute 'set local role authenticated';
+perform set_config('request.jwt.claim.sub',member_id::text,true);
+perform public.submit_contribution(gid,1,1000000,'notification-payment',today,0);
+t:=public.get_member_notifications();
+if not exists(select 1 from jsonb_array_elements(t->'items') x where x->>'title'='Payment reported') then raise exception 'report notification missing';end if;
+if exists(select 1 from jsonb_array_elements(t->'items') x where x->>'user_id'<>member_id::text) then raise exception 'notification privacy leak';end if;
+execute 'reset role';
+if exists(select 1 from public.notification_outbox o join public.member_notifications n on n.id=o.notification_id where n.user_id=member_id and n.kind='reminder' and o.state='queued') then raise exception 'pending payment reminders not cancelled';end if;
+execute 'set local role authenticated';
+perform set_config('request.jwt.claim.sub',leader_id::text,true);
+perform public.review_contribution(gid,1,member_id,1,true,'');
+perform set_config('request.jwt.claim.sub',member_id::text,true);
+t:=public.get_member_notifications();
+if not exists(select 1 from jsonb_array_elements(t->'items') x where x->>'title'='Payment confirmed by leader') then raise exception 'confirmation notification missing';end if;
+update public.notification_preferences set email_enabled=false,sms_enabled=false where user_id=member_id;
+execute 'reset role';
+if exists(select 1 from public.notification_outbox o join public.member_notifications n on n.id=o.notification_id where n.user_id=member_id and o.state='queued') then raise exception 'opt out did not cancel queue';end if;
+execute 'set local role authenticated';
+perform set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000903',true);
+if public.get_member_notifications()->'items'<>'[]'::jsonb then raise exception 'outsider notification leak';end if;
+begin perform public.prepare_member_reminders(member_id,today);raise exception 'client could schedule others';exception when insufficient_privilege then null;end;
+begin perform 1 from public.notification_outbox;raise exception 'outbox readable';exception when insufficient_privilege then null;end;
+begin perform 1 from public.member_notifications;raise exception 'raw notifications readable';exception when insufficient_privilege then null;end;
+execute 'reset role';
+end; $$;
+rollback;
+select 'PASS: private notifications, unread chat, safe replies, cadence, opt-in queue, payment suppression and opt-out cancellation' as result;

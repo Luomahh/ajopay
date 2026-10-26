@@ -2,6 +2,12 @@
 
 A Flutter app for coordinating rotating savings groups (ajo/esusu).
 
+## Engineering baseline
+
+Start with the [five-part system design](docs/system-design/README.md): requirements/capacity, data/API, architecture, reliability/security, and decisions/roadmap. It distinguishes implemented code from proposed payment infrastructure and unverified operational targets.
+
+[Agent workflow](docs/AGENT_WORKFLOW.md), [Agensi skill review](docs/AGENSI_SKILL_REVIEW.md), [security checks](docs/SECURITY_CHECKS.md), and the [isolated Paystack sandbox adapter](supabase/functions/PAYMENTS_SANDBOX.md) support that baseline. No live payment or identity-verification integration is enabled.
+
 ## Current state
 
 Authentication, draft creation, invite-code joining, member agreement, activation, and agreed schedules are implemented. Groups support daily, weekly, or monthly contributions and either rotating payouts or saving to an end date.
@@ -43,7 +49,7 @@ flutter test
 flutter build web
 ```
 
-Flutter tests use fake repositories and HTTP fixtures. SQL tests separately verify the live database rules using temporary, rolled-back users; a two-account device walkthrough remains a manual acceptance check. iOS requires a complete Xcode installation and CocoaPods. Android tooling availability alone does not verify an Android build.
+Flutter tests use fake repositories and HTTP fixtures. The [local SQL harness](supabase/testing/README.md) rebuilds application migrations and checks authorization using temporary, rolled-back users against a documented platform fixture; full Supabase integration remains separate; a two-account device walkthrough remains a manual acceptance check. iOS requires a complete Xcode installation and CocoaPods. Android tooling availability alone does not verify an Android build.
 
 ## Structure
 
@@ -65,3 +71,5 @@ New drafts support separate contribution/payout schedules, minimum-plus-extra ta
 ### Contact details and PDF records
 
 See [account, Google setup and statement guide](docs/GOOGLE_AND_STATEMENTS.md). Google OAuth still requires provider credentials and end-to-end testing. The 202610120001 contact/statement migration was applied and all seven rollback-only database suites passed on Supabase on 2026-10-12. The app has 85 passing tests, clean analysis and a successful web build. Google OAuth still awaits credentials and real-account callback testing.
+
+Reminder inbox, opt-in email/SMS preparation, and remaining delivery setup are documented in [Notifications setup](docs/NOTIFICATIONS_SETUP.md).

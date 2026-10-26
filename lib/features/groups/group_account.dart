@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/datasources/supabase_client_provider.dart';
 import '../../core/widgets/ajo_ui.dart';
@@ -60,31 +59,36 @@ class GroupAccountPanel extends ConsumerWidget {
                   ('Bank', 'bank_name'),
                   ('Account number', 'account_number'),
                   ('Account name', 'account_name'),
-                ]) ...[
-                  Text(field.$1, style: const TextStyle(fontSize: 12)),
-                  SelectableText(
-                    row[field.$2] as String,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
+                ])
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            field.$1,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 3,
+                          child: SelectableText(
+                            row[field.$2] as String,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 10),
-                ],
-                TextButton.icon(
-                  onPressed: () async {
-                    await Clipboard.setData(
-                      ClipboardData(text: row['account_number'] as String),
-                    );
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Account number copied.')),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.copy),
-                  label: const Text('Copy account number'),
-                ),
                 const Text(
                   'Added by the leader. AjoPay has not verified this account. Check the recipient name in your banking app before transferring.',
                 ),

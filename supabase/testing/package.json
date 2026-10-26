@@ -1,0 +1,16 @@
+{
+  "name": "ajopay-database-regression",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node run.mjs",
+    "test:integration": "node full-stack.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.11",
+    "pg": "8.23.1"
+  }
+}

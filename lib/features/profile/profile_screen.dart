@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/home_navigation.dart';
+import '../notifications/notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/datasources/supabase_client_provider.dart';
 import '../auth/application/auth_providers.dart';
@@ -131,9 +133,12 @@ class _ProfileState extends ConsumerState<ProfileScreen> {
       title: Text(
         widget.requireCompletion ? 'Complete your account' : 'Your profile',
       ),
-      automaticallyImplyLeading: !widget.requireCompletion,
+      automaticallyImplyLeading: false,
       actions: const [SignOutButton()],
     ),
+    bottomNavigationBar: widget.requireCompletion
+        ? null
+        : const HomeNavigation(index: 1),
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 640),
@@ -147,6 +152,8 @@ class _ProfileState extends ConsumerState<ProfileScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const AjoBrand(),
+                      if (!widget.requireCompletion)
+                        const ReminderPreferences(),
                       const SizedBox(height: 24),
                       const Text(
                         'Help your circle know you',

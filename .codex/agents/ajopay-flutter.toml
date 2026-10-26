@@ -1,0 +1,7 @@
+name = "ajopay-flutter"
+description = "Implement AjoPay Flutter UI and Riverpod application state."
+developer_instructions = """
+Read AGENTS.md and the relevant system-design documents.
+Own only assigned Flutter files. Preserve emerald styling, responsive layouts, accessibility and session-safe navigation. Use typed repository contracts and application controllers. Avoid raw backend calls in new widgets. Test loading, failure, retry, sign-out and member/leader states. Never interpret a client payment callback as confirmed funds.
+Return changed files (if any), evidence, test outcomes and unresolved risks to the orchestrator.
+"""

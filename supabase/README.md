@@ -17,13 +17,15 @@ These migrations have already been applied to the current hosted project. Do not
 
 ## Fresh-project prerequisites
 
-The migrations extend an existing Supabase project. Before applying them to a fresh project, recreate the pre-existing `public.profiles` schema and signup trigger. The inspected baseline includes `id` (the auth user ID), `full_name`, `phone`, `trust_score`, and `created_at`, with own-profile read/insert/update policies and the `handle_new_user()` signup trigger. Its original DDL is not included in these feature migrations. See [group setup](../docs/GROUPS_SETUP.md) for the inspected baseline and deployment notes.
+The original hosted `public.profiles` DDL was not checked in. For an **empty fresh project only**, `bootstrap/000_profiles.sql` now supplies a conservative profile table, owner-only policies, protected server fields and signup trigger. Apply it before the feature migrations as the database owner. It deliberately fails on conflicting objects. It is not an export of hosted DDL, and must not be applied to the existing project. Hosted parity and migration history still need reconciliation.
+
+The separate [local regression harness](testing/README.md) rebuilds these application objects against an in-memory PostgreSQL platform fixture. Its fixture must never be deployed to Supabase.
 
 Use only the project URL and public publishable/anon client key in the Flutter `.env`; copy the placeholders from `.env.example`. Never put a database password, service-role key, or personal access token in client assets or this repository. Supabase Auth settings such as redirect URLs must be configured in the dashboard for your deployment.
 
 ## Tests
 
-Run each SQL test as postgres in the Supabase SQL Editor against a suitably configured test project. They create synthetic users inside a transaction and end with `rollback`; do not replace it with `commit`.
+Prefer the [local regression harness](testing/README.md) for repeatable checks. For full-stack verification, run each SQL test as postgres against a disposable, suitably configured Supabase test project. They create synthetic users inside a transaction and end with `rollback`; do not replace it with `commit`.
 
 - `tests/payouts.sql`: rotating and target payouts, funding/date/order restrictions, privacy, retries, disputes, and full-round completion; passed live on 2026-10-10.
 - `tests/draft_groups.sql`: base creation and authorization checks.

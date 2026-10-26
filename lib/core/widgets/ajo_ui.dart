@@ -29,13 +29,19 @@ class AjoBrand extends StatelessWidget {
 }
 
 class AjoPanel extends StatelessWidget {
-  const AjoPanel({super.key, required this.child, this.color = Colors.white});
+  const AjoPanel({
+    super.key,
+    required this.child,
+    this.color = Colors.white,
+    this.padding = const EdgeInsets.all(22),
+  });
   final Widget child;
   final Color color;
+  final EdgeInsetsGeometry padding;
   @override
   Widget build(BuildContext context) => Container(
     width: double.infinity,
-    padding: const EdgeInsets.all(22),
+    padding: padding,
     decoration: BoxDecoration(
       color: color,
       borderRadius: BorderRadius.circular(24),

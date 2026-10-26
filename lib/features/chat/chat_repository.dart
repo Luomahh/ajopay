@@ -14,11 +14,15 @@ class ChatMessage {
     required this.isLeader,
     this.removed = false,
     this.hidden = false,
+    this.replyTo,
+    this.replyBody,
   });
   final int sequence;
   final String userId, name, body;
   final DateTime createdAt;
   final bool isLeader, removed, hidden;
+  final int? replyTo;
+  final String? replyBody;
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
     sequence: j['sequence'] as int,
     userId: j['user_id'] as String,
@@ -28,6 +32,8 @@ class ChatMessage {
     isLeader: j['is_leader'] as bool,
     removed: j['removed'] == true,
     hidden: j['hidden'] == true,
+    replyTo: j['reply_to'] as int?,
+    replyBody: j['reply_body'] as String?,
   );
 }
 
@@ -38,7 +44,12 @@ abstract class ChatRepository {
     required bool everyone,
   });
   Future<Result<List<ChatMessage>>> list(String groupId, {int? before});
-  Future<Result<int>> send(String groupId, String requestId, String body);
+  Future<Result<int>> send(
+    String groupId,
+    String requestId,
+    String body, {
+    int? replyTo,
+  });
 }
 
 final chatRepositoryProvider = Provider<ChatRepository>(
@@ -107,17 +118,22 @@ class SupabaseChatRepository implements ChatRepository {
     );
   });
   @override
-  Future<Result<int>> send(String groupId, String requestId, String body) =>
-      request(
-        () async =>
-            (await client.rpc(
-                  'send_group_message',
-                  params: {
-                    'p_group_id': groupId,
-                    'p_request_id': requestId,
-                    'p_body': body.trim(),
-                  },
-                ))
-                as int,
-      );
+  Future<Result<int>> send(
+    String groupId,
+    String requestId,
+    String body, {
+    int? replyTo,
+  }) => request(
+    () async =>
+        (await client.rpc(
+              'send_group_reply',
+              params: {
+                'p_group_id': groupId,
+                'p_request_id': requestId,
+                'p_body': body.trim(),
+                'p_reply_to': replyTo,
+              },
+            ))
+            as int,
+  );
 }

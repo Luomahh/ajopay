@@ -1,0 +1,58 @@
+name: Engineering checks
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      DASH__SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+      - name: Supply public-only test configuration
+        run: cp .env.example .env
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter analyze
+      - run: flutter test
+  sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+      - name: Test isolated payment adapter without network calls
+        run: node --test supabase/functions/_shared/payments/paystack_sandbox.test.mjs
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+          cache-dependency-path: supabase/testing/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: supabase/testing
+      - name: Rebuild and test SQL against isolated platform fixture
+        run: npm test
+        working-directory: supabase/testing

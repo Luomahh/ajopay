@@ -1,0 +1,30 @@
+name: Disposable Supabase integration
+# Manual until the native runtime has completed a verified run. No hosted secrets.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+          cache-dependency-path: supabase/testing/package-lock.json
+      - uses: supabase/setup-cli@v1
+        with:
+          version: '2.122.0'
+      - run: npm ci --ignore-scripts
+        working-directory: supabase/testing
+      - run: node --test http-smoke.test.mjs
+        working-directory: supabase/testing
+      - run: npm run test:integration
+        working-directory: supabase/testing
+        env:
+          AJOPAY_TEST_RUNTIME: native

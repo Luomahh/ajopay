@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../features/notifications/notifications.dart';
 import '../features/profile/profile_screen.dart';
 import '../features/landing/landing_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,6 +43,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationsScreen(),
+      ),
       GoRoute(
         path: '/complete-profile',
         builder: (context, state) =>
